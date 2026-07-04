@@ -1,6 +1,7 @@
 from fea.node import Node
 from fea.element import Element
 from fea.solver import create_global_matrix, build_force_vector, apply_boundary_conditions, solve_system
+import fea.visualisation
 
 def main():
     n0 = Node(identifier=0, posx=0.0, is_fixed=True)

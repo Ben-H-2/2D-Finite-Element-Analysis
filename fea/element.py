@@ -5,8 +5,27 @@ class Element:
         self.leftnode = leftnode
         self.rightnode = rightnode
         self.stiffness = stiffness
+    def get_angle(self):
+        delta_y=self.rightnode.posy-self.leftnode.posy
+        delta_x=self.rightnode.posx-self.leftnode.posx
+        angle = np.arctan2(delta_y, delta_x)
+        return angle
+    
     def create_stiffness_matrix(self):
-        stiffness_matrix = np.array([[self.stiffness, -self.stiffness], [-self.stiffness,self.stiffness]])
-        return stiffness_matrix
+        theta = self.get_angle()
+        c = np.cos(theta)
+        s = np.sin(theta)
+        c2 = c**2
+        s2 = s**2
+        cs = c*s
+        k = self.stiffness
+        K = k * np.array([
+            [ c2,  cs, -c2, -cs],
+            [ cs,  s2, -cs, -s2],
+            [-c2, -cs,  c2,  cs],
+            [-cs, -s2,  cs,  s2]
+        ])
+        return K
+        
     
 
