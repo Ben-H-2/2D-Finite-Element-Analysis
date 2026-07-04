@@ -1,18 +1,25 @@
 import numpy as np
 
 def create_global_matrix(nodes, elements):
-    n = len(nodes)
+    n = len(nodes)*2
     K = np.zeros((n, n))
     for element in elements:
-        start = min(element.leftnode.identifier,element.rightnode.identifier)
-        end = max(element.leftnode.identifier,element.rightnode.identifier)+1
-        K[start:end, start:end] += element.create_stiffness_matrix()
+        local_matrix = element.create_stiffness_matrix()
+        left_node_identifier = element.leftnode.identifier
+        right_node_identifier = element.rightnode.identifier
+        left_x = left_node_identifier*2
+        left_y = left_node_identifier*2+1
+        right_x = right_node_identifier*2
+        right_y = right_node_identifier*2+1
+        dofs = [left_x,left_y,right_x,right_y]
+        K[np.ix_(dofs, dofs)] += local_matrix
     return K
 
 def build_force_vector(nodes):
-    F = np.zeros((len(nodes)))
+    F = np.zeros((len(nodes)*2))
     for node in nodes:
-        F[node.identifier] = node.force
+        F[node.identifier*2] = node.force_x
+        F[node.identifier*2+1] = node.force_y
     return F
 
 def apply_boundary_conditions(K, F, nodes):
