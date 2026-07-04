@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np 
 
 class Element:
     def __init__(self,stiffness,leftnode = None, rightnode = None):
