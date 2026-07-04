@@ -17,11 +17,3 @@ def test_three_node_spring_system():
     u = solve_system(K_r, F_r)
 
     assert np.allclose(u, [2.0, 5.333333], atol=1e-4)
-
-
-n0 = Node(identifier=0, posx=0.0, posy=0.0)
-n1 = Node(identifier=1, posx=1.0, posy=0.0)  # same y, so purely horizontal
-
-e0 = Element(stiffness=5, leftnode=n0, rightnode=n1)
-print(e0.get_angle())              # expect 0.0
-print(e0.create_stiffness_matrix())
