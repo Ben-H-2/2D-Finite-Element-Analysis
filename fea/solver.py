@@ -25,8 +25,10 @@ def build_force_vector(nodes):
 def apply_boundary_conditions(K, F, nodes):
     remove = []
     for node in nodes:
-        if node.is_fixed == True:
-            remove.append(node.identifier)
+        if node.is_fixed_x == True:
+            remove.append(node.identifier*2)
+        if node.is_fixed_y == True:
+            remove.append(node.identifier*2+1)
     K = np.delete(K,remove,axis=1)
     K = np.delete(K,remove,axis=0)
     F = np.delete(F,remove,axis=0)       
