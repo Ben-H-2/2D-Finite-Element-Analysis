@@ -32,9 +32,18 @@ def apply_boundary_conditions(K, F, nodes):
     K = np.delete(K,remove,axis=1)
     K = np.delete(K,remove,axis=0)
     F = np.delete(F,remove,axis=0)       
-    return K, F
+    return K, F, remove
 
 def solve_system(K_reduced, F_reduced):
     return(np.linalg.solve(K_reduced,F_reduced))
+
+def expand_displacements(u_reduced, remove, total_dofs):
+    full_u = np.zeros(total_dofs)
+    counter = 0
+    for position in range(total_dofs):
+        if position not in remove:
+            full_u[position] = u_reduced[counter]
+            counter += 1
+    return full_u
 
 
