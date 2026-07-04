@@ -17,5 +17,5 @@ def test_three_node_spring_system():
     u = solve_system(K_r, F_r)
 
     assert np.allclose(u, [2.0, 5.333333], atol=1e-4)
-    
+
 test_three_node_spring_system
