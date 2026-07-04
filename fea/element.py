@@ -40,6 +40,25 @@ class Element:
         ])
         return K
     
+    def get_stress(self,u):
+        theta = self.get_angle()
+        length = self.get_length()
+        c = np.cos(theta)
+        s = np.sin(theta)
+        left_dx = u[self.leftnode.identifier*2]
+        right_dx = u[self.rightnode.identifier*2]
+        left_dy = u[self.leftnode.identifier*2+1]
+        right_dy = u[self.rightnode.identifier*2+1]
+        delta_dx = right_dx - left_dx
+        delta_dy = right_dy - left_dy
+        stretch = delta_dx * c + delta_dy * s
+        strain = stretch/length
+        stress = self.E*strain
+        return stress
+        
+
+
+    
     
         
     
