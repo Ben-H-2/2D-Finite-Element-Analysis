@@ -59,6 +59,10 @@ class Element:
         stress = self.E*strain
         return stress
     
+    def get_von_mises_stress(self):
+        von_mises_stress = self.get_stress()
+        return von_mises_stress
+    
 class TriangleElement:
     def __init__(self, E, nu, thickness, node_a, node_b, node_c):
         self.E = E
@@ -114,6 +118,13 @@ class TriangleElement:
         strain = self.get_B_matrix() @ u_local
         stress = self.get_D_matrix() @ strain
         return stress
+    
+    def get_von_mises_stress(self, u):
+        stress = self.get_stress(u)
+        sigma_x, sigma_y, tau_xy = stress
+        von_mises = np.sqrt(sigma_x**2-sigma_x*sigma_y+sigma_y**2+3*tau_xy**2)
+        return von_mises
+
 
 
 
