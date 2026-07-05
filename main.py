@@ -21,7 +21,8 @@ def main():
     K_r, F_r, remove = apply_boundary_conditions(K, F, nodes)
     u_reduced = solve_system(K_r, F_r)
     full_u = expand_displacements(u_reduced, remove, len(nodes)*2)
-
+    F_full = K @ full_u
+    print(F_full)
     for element in elements:
         stress = element.get_stress(full_u)
         print(stress)
