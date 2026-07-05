@@ -59,8 +59,8 @@ class Element:
         stress = self.E*strain
         return stress
     
-    def get_von_mises_stress(self):
-        von_mises_stress = self.get_stress()
+    def get_von_mises_stress(self,full_u):
+        von_mises_stress = self.get_stress(full_u)
         return von_mises_stress
     
 class TriangleElement:
