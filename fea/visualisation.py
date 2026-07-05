@@ -56,10 +56,12 @@ def build_stress_array(elements, full_u):
     return von_mises_stress_list
 
 def render_mesh(nodes,elements,full_u=None,scale=1):
+    stress_array = None
     if full_u is None:
         points = build_points_array(nodes)
     else:
         points = build_deformed_points_array(nodes,full_u,scale)
+        stress_array = np.array(build_stress_array(elements, full_u))
     node_to_index = build_node_index_map(nodes)
     cells = build_cells_array(elements,node_to_index)
 
@@ -67,11 +69,17 @@ def render_mesh(nodes,elements,full_u=None,scale=1):
     cells_array = np.array(cells)
 
     mesh = pv.PolyData(points_array, faces = cells_array)
+    if stress_array is not None:
+        mesh.cell_data["von_mises_stress"] = stress_array
     return mesh
 
-def show_mesh(mesh, show_edges=True, edge_color="black", line_width=3):
+def show_mesh(mesh, show_edges=False, edge_color="black", line_width=3):
+    if "von_mises_stress" in mesh.cell_data:
+        scalars_to_use = "von_mises_stress"
+    else:
+        scalars_to_use = None
     plotter = pv.Plotter()
-    plotter.add_mesh(mesh, show_edges=show_edges, edge_color=edge_color, line_width=line_width)
+    plotter.add_mesh(mesh, show_edges=show_edges, edge_color=edge_color, line_width=line_width, scalars = scalars_to_use)
     plotter.add_text("W: wireframe   S: surface", font_size=10)
     plotter.show()
 
@@ -79,7 +87,7 @@ def show_mesh(mesh, show_edges=True, edge_color="black", line_width=3):
 
 if __name__ == "__main__":
     from .node import Node
-    from .element import Element
+    from .element import TriangleElement
     from .solver import (
         create_global_matrix,
         build_force_vector,
@@ -88,26 +96,45 @@ if __name__ == "__main__":
         expand_displacements,
     )
 
-    n0 = Node(identifier=0, posx=0.0, posy=0.0, is_fixed_x=True, is_fixed_y=True)
-    n1 = Node(identifier=1, posx=2.0, posy=0.0, is_fixed_x=True, is_fixed_y=True)
-    n2 = Node(identifier=2, posx=1.0, posy=1.5, force_y=-10)
+    # Grid settings — tweak these for more/fewer triangles
+    length = 4.0   # x direction
+    height = 2.0   # y direction
+    nx = 60        # divisions along x
+    ny = 30        # divisions along y
 
-    nodes = [n0, n1, n2]
+    nodes = []
+    node_grid = {}  # (col, row) -> Node
+    identifier = 0
+    for col in range(nx + 1):
+        for row in range(ny + 1):
+            x = length * col / nx
+            y = height * row / ny
+            is_fixed = (col == 0)
+            force_y = -100 if col == nx else 0
+            n = Node(identifier=identifier, posx=x, posy=y,
+                      is_fixed_x=is_fixed, is_fixed_y=is_fixed,
+                      force_y=force_y)
+            node_grid[(col, row)] = n
+            nodes.append(n)
+            identifier += 1
 
-    e0 = Element(E=200e9, A=0.001, leftnode=n0, rightnode=n1)
-    e1 = Element(E=200e9, A=0.001, leftnode=n0, rightnode=n2)
-    e2 = Element(E=200e9, A=0.001, leftnode=n1, rightnode=n2)
-
-    elements = [e0, e1, e2]
+    elements = []
+    for col in range(nx):
+        for row in range(ny):
+            a = node_grid[(col, row)]
+            b = node_grid[(col+1, row)]
+            c = node_grid[(col+1, row+1)]
+            d = node_grid[(col, row+1)]
+            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=c))
+            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=c, node_c=d))
 
     K = create_global_matrix(nodes, elements)
     F = build_force_vector(nodes)
     K_r, F_r, remove = apply_boundary_conditions(K, F, nodes)
     u_reduced = solve_system(K_r, F_r)
     full_u = expand_displacements(u_reduced, remove, len(nodes) * 2)
-    print(full_u)
 
-    mesh = render_mesh(nodes, elements, full_u,scale=10000000)
+    mesh = render_mesh(nodes, elements, full_u, scale=200)
     print(mesh)
     show_mesh(mesh)
 
