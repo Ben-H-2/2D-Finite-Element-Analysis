@@ -1,17 +1,19 @@
 import numpy as np
 
+def get_dofs(nodes_list):
+    dofs = []
+    for node in nodes_list:
+        dofs.append(node.identifier*2)
+        dofs.append(node.identifier*2+1)
+    return dofs
+
 def create_global_matrix(nodes, elements):
     n = len(nodes)*2
     K = np.zeros((n, n))
     for element in elements:
         local_matrix = element.create_stiffness_matrix()
-        left_node_identifier = element.leftnode.identifier
-        right_node_identifier = element.rightnode.identifier
-        left_x = left_node_identifier*2
-        left_y = left_node_identifier*2+1
-        right_x = right_node_identifier*2
-        right_y = right_node_identifier*2+1
-        dofs = [left_x,left_y,right_x,right_y]
+        node_list = element.get_nodes()
+        dofs = get_dofs(node_list)
         K[np.ix_(dofs, dofs)] += local_matrix
     return K
 
@@ -45,5 +47,6 @@ def expand_displacements(u_reduced, remove, total_dofs):
             full_u[position] = u_reduced[counter]
             counter += 1
     return full_u
+
 
 
