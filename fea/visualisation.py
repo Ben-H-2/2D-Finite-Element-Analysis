@@ -81,6 +81,7 @@ def show_mesh(mesh, show_edges=False, edge_color="black", line_width=3):
     plotter = pv.Plotter()
     plotter.add_mesh(mesh, show_edges=show_edges, edge_color=edge_color, line_width=line_width, scalars = scalars_to_use)
     plotter.add_text("W: wireframe   S: surface", font_size=10)
+    plotter.view_xy()
     plotter.show()
 
 def make_edge_fixer(edge, nx, ny):
@@ -103,7 +104,7 @@ def make_edge_loader(force_x,force_y,edge,nx,ny):
             return (force_x, force_y)
         else:
             return (0,0)
-    return is_forced_fn
+    return is_forced_fn 
 
 
 def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
@@ -115,11 +116,11 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
         for row in range(ny + 1):
             x = length * col / nx
             y = height * row / ny
-            is_fixed = (col == 0)
-            force_y = -100 if col == nx else 0
+            is_fixed = is_fixed_fn(col,row)
+            force_x,force_y = force_fn(col,row)
             n = Node(identifier=identifier, posx=x, posy=y,
                       is_fixed_x=is_fixed, is_fixed_y=is_fixed,
-                      force_y=force_y)
+                      force_y=force_y,force_x=force_x)
             node_grid[(col, row)] = n
             nodes.append(n)
             identifier += 1
@@ -131,8 +132,15 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
             b = node_grid[(col+1, row)]
             c = node_grid[(col+1, row+1)]
             d = node_grid[(col, row+1)]
-            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=c))
-            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=c, node_c=d))
+            if (col+row) % 2 == 0:
+                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=c))
+                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=c, node_c=d))
+            else:
+                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=d))
+                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=b, node_b=c, node_c=d))
+        
+    return nodes, elements
+
 
 
 
@@ -147,37 +155,15 @@ if __name__ == "__main__":
         expand_displacements,
     )
 
-    # Grid settings — tweak these for more/fewer triangles
-    length = 4.0   # x direction
-    height = 2.0   # y direction
-    nx = 50        # divisions along x
-    ny = 25        # divisions along y
+    length = 2.0
+    height = 2.0
+    nx = 4
+    ny = 4   # even, so row and (ny - row) form clean mirror pairs
 
-    nodes = []
-    node_grid = {}  # (col, row) -> Node
-    identifier = 0
-    for col in range(nx + 1):
-        for row in range(ny + 1):
-            x = length * col / nx
-            y = height * row / ny
-            is_fixed = (col == 0)
-            force_y = -100 if col == nx else 0
-            n = Node(identifier=identifier, posx=x, posy=y,
-                      is_fixed_x=is_fixed, is_fixed_y=is_fixed,
-                      force_y=force_y)
-            node_grid[(col, row)] = n
-            nodes.append(n)
-            identifier += 1
+    is_fixed_fn = make_edge_fixer("left", nx, ny)
+    force_fn = make_edge_loader(0, -10, "right", nx, ny)
 
-    elements = []
-    for col in range(nx):
-        for row in range(ny):
-            a = node_grid[(col, row)]
-            b = node_grid[(col+1, row)]
-            c = node_grid[(col+1, row+1)]
-            d = node_grid[(col, row+1)]
-            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=c))
-            elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=c, node_c=d))
+    nodes, elements = generate_rectangle_mesh(length, height, nx, ny, is_fixed_fn, force_fn)
 
     K = create_global_matrix(nodes, elements)
     F = build_force_vector(nodes)
@@ -185,7 +171,22 @@ if __name__ == "__main__":
     u_reduced = solve_system(K_r, F_r)
     full_u = expand_displacements(u_reduced, remove, len(nodes) * 2)
 
-    mesh = render_mesh(nodes, elements, full_u, scale=200)
-    print(mesh)
-    show_mesh(mesh)
+    # Rebuild node_grid lookup so we can find mirrored pairs by (col, row)
+    node_grid = {}
+    for n in nodes:
+        col = round(n.posx / (length / nx))
+        row = round(n.posy / (height / ny))
+        node_grid[(col, row)] = n
+
+    print(f"{'col':>4} {'row':>4} {'ux':>12} {'uy':>12}   mirror_row {'ux_mirror':>12} {'uy_mirror':>12}")
+    for col in range(nx + 1):
+        for row in range(ny // 2 + 1):
+            mirror_row = ny - row
+            n1 = node_grid[(col, row)]
+            n2 = node_grid[(col, mirror_row)]
+            ux1 = full_u[n1.identifier * 2]
+            uy1 = full_u[n1.identifier * 2 + 1]
+            ux2 = full_u[n2.identifier * 2]
+            uy2 = full_u[n2.identifier * 2 + 1]
+            print(f"{col:>4} {row:>4} {ux1:>12.6e} {uy1:>12.6e}   {mirror_row:>10} {ux2:>12.6e} {uy2:>12.6e}")
 

@@ -41,7 +41,8 @@ def apply_boundary_conditions(K, F, nodes):
             remove.append(node.identifier*2)
         if node.is_fixed_y:
             remove.append(node.identifier*2+1)
-    keep = [dof for dof in range(n) if dof not in remove]
+    remove_set = set(remove)
+    keep = [dof for dof in range(n) if dof not in remove_set]
     K_r = K.tocsr()[keep, :][:, keep] #Trims unnecessary columns and rows
     F_r = F[keep]
            

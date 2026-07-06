@@ -32,7 +32,7 @@ class Element:
         c = np.cos(theta)
         s = np.sin(theta)
         c2 = c**2
-        s2 = s**2
+        s2 = s**2 
         cs = c*s
         k = self.get_stiffness()
         K = k * np.array([
