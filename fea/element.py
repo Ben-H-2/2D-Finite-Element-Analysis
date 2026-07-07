@@ -129,9 +129,9 @@ class TriangleElement(ElementBase):
         K = a*t*(b.T @ d @ b)
         return K
     
-    def get_stress(self,u):
+    def get_stress(self, u, node_index):
         node_list = self.get_nodes()
-        dofs = get_dofs(node_list)
+        dofs = get_dofs(node_list, node_index)
         u_local = u[dofs]
         strain = self.get_B_matrix() @ u_local
         stress = self.get_D_matrix() @ strain
