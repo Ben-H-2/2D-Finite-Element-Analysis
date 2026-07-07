@@ -1,14 +1,15 @@
 from fea.node import Node
-from fea.element import Element
+from fea.element import Element,TriangleElement,ElementBase
+from fea.material import Material
+from fea.solver import build_node_index, create_global_matrix, build_force_vector,reduce_system,expand_displacements,solve_system
+from fea.visualisation import render_mesh, show_mesh
 
 class AnalysisModel:
     def __init__(self):
         self.elements = []
         self.nodes = []
-        self.supports = {}
         self.materials = {}
         self._next_id = 0
-        self.forces = {}
         self.u = None
         self.K = None 
 
@@ -53,65 +54,132 @@ class AnalysisModel:
         return element
 
     def add_load(self, node, force_x=0.0, force_y=0.0):
-        """Apply a point load to a node and store it as part of the model's load case."""
-        pass
-
+        if node not in self.nodes:
+            raise ValueError(f"Node is not part of this model: {node}")
+        node.force_x += force_x
+        node.force_y += force_y
+        return node
+    
     def add_distributed_load(self, element, load_value, direction="y"):
-        """Apply a distributed load to an element, to be converted into equivalent nodal loads later."""
-        pass
+        if element not in self.elements:
+            raise ValueError(f"Element is not part of this model: {element}")
+        length = element.get_length()
+        total_load = load_value * length
+        half_load = total_load / 2
+        for node in element.get_nodes():
+            if direction == "y":
+                self.add_load(node, force_y=half_load)
+            elif direction == "x":
+                self.add_load(node, force_x=half_load)
+            else:
+                raise ValueError(f"Invalid direction: {direction}")
+        return element
 
     def add_support(self, node, fix_x=False, fix_y=False):
-        """Apply boundary conditions to a node by constraining one or more degrees of freedom."""
-        pass
-
+        if node not in self.nodes:
+            raise ValueError(f"Node is not part of this model: {node}")
+        node.is_fixed_x = node.is_fixed_x or fix_x
+        node.is_fixed_y = node.is_fixed_y or fix_y
+        return node
+        
     def remove_node(self, node):
-        """Remove a node and any connected elements or loads associated with it, with appropriate validation."""
-        pass
+        if node not in self.nodes:
+            raise ValueError(f"Node is not part of this model: {node}")
+        for element in self.elements:
+            if node in element.get_nodes():
+                raise ValueError(f"Cannot remove node: still referenced by an element: {element}")
+        self.nodes.remove(node)
+        return node
 
     def remove_element(self, element):
-        """Remove an element from the model while preserving the rest of the mesh and boundary conditions."""
-        pass
+        if element not in self.elements:
+            raise ValueError(f"Element is not part of this model: {element}")
+        self.elements.remove(element)
+        return element
 
     def clear_all(self):
-        """Reset the model to an empty state so a new analysis can be started cleanly."""
-        pass
+        self.nodes = []
+        self.elements = []
+        self._next_id = 0
+        self.u = None
+        self.K = None
 
     def build_mesh(self):
-        """Construct or validate the mesh data structure from the stored nodes and elements."""
-        pass
+        if not self.nodes:
+            raise ValueError("Model has no nodes.")
+        if not self.elements:
+            raise ValueError("Model has no elements.")
+        used_nodes = set()
+        for element in self.elements:
+            for node in element.get_nodes():
+                used_nodes.add(node)
+        unused = [n for n in self.nodes if n not in used_nodes]
+        if unused:
+            print(f"Warning: {len(unused)} node(s) not connected to any element.")
+        return True
 
     def assemble_system(self):
-        """Assemble the global stiffness matrix and force vector from the current model state."""
-        pass
+        node_index = build_node_index(self.nodes)
+        self.K = create_global_matrix(self.nodes, self.elements, node_index)
+        F = build_force_vector(self.nodes, node_index)
+        return self.K, F, node_index
 
     def apply_boundary_conditions(self):
-        """Reduce the system using the model's prescribed supports and return reduced matrices and removed DOFs."""
-        pass
+        from fea.solver import reduce_system
+        K, F, node_index = self.assemble_system()
+        K_r, F_r, remove = reduce_system(K, F, self.nodes, node_index)
+        return K, K_r, F_r, remove, node_index
 
     def solve(self):
-        """Run the complete analysis workflow: assembly, boundary-condition reduction, solving, and result storage."""
-        pass
+        self.build_mesh()
+        K, K_r, F_r, remove, node_index = self.apply_boundary_conditions()
+        u_reduced = solve_system(K_r, F_r)
+        self.u = expand_displacements(u_reduced, remove, len(self.nodes)*2)
+        self.K = K
+        self._node_index = node_index
+        return self.u
 
     def get_displacements(self):
-        """Return the solved displacement vector for the current analysis."""
-        pass
+        if self.u is None:
+            raise ValueError("Model has not been solved yet. Call solve() first.")
+        return self.u
 
     def get_reactions(self):
-        """Calculate and return the reaction forces at constrained DOFs after solving."""
-        pass
+        if self.u is None:
+            raise ValueError("Model has not been solved yet. Call solve() first.")
+        F_full = self.K @ self.u
+        reactions = {}
+        for node in self.nodes:
+            idx = self._node_index[node]
+            rx = F_full[idx*2]
+            ry = F_full[idx*2+1]
+            if node.is_fixed_x or node.is_fixed_y:
+                reactions[node] = (rx, ry)
+        return reactions
 
     def get_element_stresses(self):
-        """Compute stress results for each element from the solved displacements."""
-        pass
+        if self.u is None:
+            raise ValueError("Model has not been solved yet. Call solve() first.")
+        stresses = {}
+        for element in self.elements:
+            stresses[element] = element.get_stress(self.u, self._node_index)
+        return stresses
 
     def get_element_strains(self):
-        """Compute strain results for each element from the solved displacements."""
-        pass
+        if self.u is None:
+            raise ValueError("Model has not been solved yet. Call solve() first.")
+        strains = {}
+        for element in self.elements:
+            strains[element] = element.get_strain(self.u, self._node_index)
+        return strains
 
     def get_von_mises_stresses(self):
-        """Calculate von Mises stress values for elements where that metric is relevant."""
-        pass
-
+        if self.u is None:
+            raise ValueError("Model has not been solved yet. Call solve() first.")
+        result = {}
+        for element in self.elements:
+            result[element] = element.get_von_mises_stress(self.u, self._node_index)
+        return result
     def save_to_file(self, filename):
         """Serialise the current model to disk so it can be reloaded later for continued analysis."""
         pass
@@ -136,6 +204,6 @@ class AnalysisModel:
         """Export solved results such as displacements, reactions, and stresses to a file for reporting or post-processing."""
         pass
 
-    def plot_results(self):
-        """Generate a default visualisation of the deformed structure and stress field for quick inspection."""
-        pass
+    def plot_results(self, scale=1):
+        mesh = render_mesh(self.nodes, self.elements, full_u=self.u, scale=scale)
+        show_mesh(mesh, show_edges=True)
