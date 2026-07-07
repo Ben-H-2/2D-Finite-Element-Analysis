@@ -13,11 +13,15 @@ class ElementBase(ABC):
         pass
 
     @abstractmethod
-    def get_stress(self, u):
+    def get_stress(self, u, node_index):
         pass
 
     @abstractmethod
     def get_von_mises_stress(self, u):
+        pass
+
+    @abstractmethod
+    def get_edge_nodes(self, edge=None):
         pass
 
 class Element(ElementBase):
@@ -29,6 +33,9 @@ class Element(ElementBase):
 
     def get_nodes(self):
         return[self.leftnode, self.rightnode]
+    
+    def get_edge_nodes(self, edge=None):
+        return (self.leftnode, self.rightnode)
 
     def get_length(self):
         delta_y=self.rightnode.posy-self.leftnode.posy
@@ -62,20 +69,26 @@ class Element(ElementBase):
         ])
         return K
     
-    def get_stress(self,u):
+    def get_strain(self, u, node_index):
         theta = self.get_angle()
         length = self.get_length()
         c = np.cos(theta)
         s = np.sin(theta)
-        left_dx = u[self.leftnode.identifier*2]
-        right_dx = u[self.rightnode.identifier*2]
-        left_dy = u[self.leftnode.identifier*2+1]
-        right_dy = u[self.rightnode.identifier*2+1]
+        left_idx = node_index[self.leftnode]
+        right_idx = node_index[self.rightnode]
+        left_dx = u[left_idx*2]
+        right_dx = u[right_idx*2]
+        left_dy = u[left_idx*2+1]
+        right_dy = u[right_idx*2+1]
         delta_dx = right_dx - left_dx
         delta_dy = right_dy - left_dy
         stretch = delta_dx * c + delta_dy * s
         strain = stretch/length
-        stress = self.material.E*strain
+        return strain
+    
+    def get_stress(self, u, node_index):
+        strain = self.get_strain(u, node_index)
+        stress = self.material.E * strain
         return stress
     
     def get_von_mises_stress(self,full_u):
@@ -92,6 +105,17 @@ class TriangleElement(ElementBase):
 
     def get_nodes(self):
         return[self.node_a, self.node_b, self.node_c]
+    
+    def get_edge_nodes(self, edge):
+        edges = {
+            "ab": (self.node_a, self.node_b),
+            "bc": (self.node_b, self.node_c),
+            "ca": (self.node_c, self.node_a),
+        }
+        if edge not in edges:
+            raise ValueError("Triangle edge must be 'ab', 'bc', or 'ca'.")
+        return edges[edge]
+
     def get_area(self):
         area = abs(0.5*(self.node_a.posx*(self.node_b.posy-self.node_c.posy)+self.node_b.posx*(self.node_c.posy-self.node_a.posy)+self.node_c.posx*(self.node_a.posy-self.node_b.posy)))
         return area
@@ -129,11 +153,14 @@ class TriangleElement(ElementBase):
         K = a*t*(b.T @ d @ b)
         return K
     
-    def get_stress(self, u, node_index):
-        node_list = self.get_nodes()
-        dofs = get_dofs(node_list, node_index)
+    def get_strain(self, u, node_index):
+        dofs = get_dofs(self.get_nodes(), node_index)
         u_local = u[dofs]
         strain = self.get_B_matrix() @ u_local
+        return strain
+    
+    def get_stress(self, u, node_index):
+        strain = self.get_strain(u, node_index)
         stress = self.get_D_matrix() @ strain
         return stress
     
