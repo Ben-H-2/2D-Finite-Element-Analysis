@@ -1,11 +1,30 @@
 import numpy as np 
 from fea.solver import get_dofs
+from abc import ABC, abstractmethod
+from fea.material import Material
 
-class Element:
-    def __init__(self,E,A,leftnode = None, rightnode = None):
+class ElementBase(ABC):
+    @abstractmethod
+    def get_nodes(self):
+        pass
+
+    @abstractmethod
+    def create_stiffness_matrix(self):
+        pass
+
+    @abstractmethod
+    def get_stress(self, u):
+        pass
+
+    @abstractmethod
+    def get_von_mises_stress(self, u):
+        pass
+
+class Element(ElementBase):
+    def __init__(self, material, A, leftnode = None, rightnode = None):
         self.leftnode = leftnode
         self.rightnode = rightnode
-        self.E = E
+        self.material = material
         self.A = A
 
     def get_nodes(self):
@@ -24,7 +43,7 @@ class Element:
         return angle
 
     def get_stiffness(self):
-        stiffness = (self.E * self.A)/self.get_length()
+        stiffness = (self.material.E * self.A)/self.get_length()
         return stiffness
     
     def create_stiffness_matrix(self):
@@ -56,17 +75,16 @@ class Element:
         delta_dy = right_dy - left_dy
         stretch = delta_dx * c + delta_dy * s
         strain = stretch/length
-        stress = self.E*strain
+        stress = self.material.E*strain
         return stress
     
     def get_von_mises_stress(self,full_u):
         von_mises_stress = self.get_stress(full_u)
         return von_mises_stress
     
-class TriangleElement:
-    def __init__(self, E, nu, thickness, node_a, node_b, node_c):
-        self.E = E
-        self.nu = nu
+class TriangleElement(ElementBase):
+    def __init__(self, material, thickness, node_a, node_b, node_c):
+        self.material = material
         self.thickness = thickness
         self.node_a = node_a
         self.node_b = node_b
@@ -96,8 +114,8 @@ class TriangleElement:
         return B
     
     def get_D_matrix(self):
-        e = self.E
-        nu = self.nu
+        e = self.material.E
+        nu = self.material.nu
         D = e/(1-nu*nu)*np.array([[1, nu, 0],
                                   [nu, 1 , 0],
                                   [0, 0, (1-nu)/2]])

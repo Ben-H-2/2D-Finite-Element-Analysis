@@ -1,23 +1,56 @@
+from fea.node import Node
+from fea.element import Element
+
 class AnalysisModel:
     def __init__(self):
-        """Initialise the model with empty collections for nodes, elements, loads, supports, and results."""
-        pass
+        self.elements = []
+        self.nodes = []
+        self.supports = {}
+        self.materials = {}
+        self._next_id = 0
+        self.forces = {}
+        self.u = None
+        self.K = None 
 
-    def add_node(self, node):
-        """Add a node object to the model and assign it a consistent identifier if needed."""
-        pass
+    def add_node(self, posx, posy = 0):
+        new_node = Node(identifier=self._next_id,posx = posx,posy = posy)
+        self._next_id += 1
+        self.nodes.append(new_node)
+        return new_node
 
     def add_element(self, element):
-        """Add an element to the model and validate that its referenced nodes already exist."""
-        pass
-
-    def add_material(self, material):
-        """Store a material definition that can later be assigned to elements or used for property lookup."""
-        pass
+        if not isinstance(element, ElementBase):
+            raise TypeError(f"{type(element).__name__} is not a valid element type.")
+        for node in element.get_nodes():
+            if node not in self.nodes:
+                raise ValueError(f"Element references a node not in this model: {node}")
+        self.elements.append(element)
+        return element
+    
+    def _add_default_materials(self):
+        defaults = {
+            "steel":     (200e9, 0.30),
+            "aluminium": (69e9,  0.33),
+            "copper":    (110e9, 0.34),
+            "titanium":  (114e9, 0.32),
+            "concrete":  (30e9,  0.20),
+            "timber":    (11e9,  0.30),
+        }
+        for name, (E, nu) in defaults.items():
+            self.add_material(name, E=E, nu=nu)
+        
+    def add_material(self, name, E, nu):
+        material = Material(name=name, E=E, nu=nu)
+        self.materials[name] = material
+        return material
 
     def assign_material_to_element(self, element, material):
-        """Associate a material with a specific element so different materials can be used in the same model."""
-        pass
+        if element not in self.elements:
+            raise ValueError(f"Element is not part of this model: {element}")
+        if material not in self.materials.values():
+            raise ValueError(f"Material is not registered in this model: {material}")
+        element.material = material
+        return element
 
     def add_load(self, node, force_x=0.0, force_y=0.0):
         """Apply a point load to a node and store it as part of the model's load case."""

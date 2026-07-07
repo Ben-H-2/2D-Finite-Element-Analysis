@@ -1,5 +1,15 @@
 import pyvista as pv
 import numpy as np
+from fea.material import Material
+from .node import Node
+from .element import TriangleElement
+from .solver import (
+    create_global_matrix,
+    build_force_vector,
+    apply_boundary_conditions,
+    solve_system,
+    expand_displacements,
+    )
 
 
 def build_node_index_map(nodes):
@@ -125,6 +135,8 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
             nodes.append(n)
             identifier += 1
 
+    steel = Material(name="steel", E=200e9, nu=0.3)
+
     elements = []
     for col in range(nx):
         for row in range(ny):
@@ -133,11 +145,11 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
             c = node_grid[(col+1, row+1)]
             d = node_grid[(col, row+1)]
             if (col+row) % 2 == 0:
-                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=c))
-                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=c, node_c=d))
+                elements.append(TriangleElement(material=steel, thickness=0.01, node_a=a, node_b=b, node_c=c))
+                elements.append(TriangleElement(material=steel, thickness=0.01, node_a=a, node_b=c, node_c=d))
             else:
-                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=a, node_b=b, node_c=d))
-                elements.append(TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=b, node_b=c, node_c=d))
+                elements.append(TriangleElement(material=steel, thickness=0.01, node_a=a, node_b=b, node_c=d))
+                elements.append(TriangleElement(material=steel, thickness=0.01, node_a=b, node_b=c, node_c=d))
         
     return nodes, elements
 
@@ -145,15 +157,6 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
 
 
 if __name__ == "__main__":
-    from .node import Node
-    from .element import TriangleElement
-    from .solver import (
-        create_global_matrix,
-        build_force_vector,
-        apply_boundary_conditions,
-        solve_system,
-        expand_displacements,
-    )
 
     length = 2.0
     height = 2.0

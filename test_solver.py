@@ -1,5 +1,6 @@
 from fea.node import Node
 from fea.element import Element,TriangleElement
+from fea.material import Material
 from fea.solver import create_global_matrix,build_force_vector,apply_boundary_conditions,solve_system,expand_displacements,get_dofs
 import numpy as np
 
@@ -8,8 +9,11 @@ def test_three_node_spring_system():
     n1 = Node(identifier=1, posx=1.0,is_fixed_y=True)
     n2 = Node(identifier=2, posx=2.0, force_x=10,is_fixed_y=True)
 
-    e0 = Element(E=5, A=1, leftnode=n0, rightnode=n1)
-    e1 = Element(E=3, A=1, leftnode=n1, rightnode=n2)
+    mat0 = Material(name="spring0", E=5, nu=0.3)
+    mat1 = Material(name="spring1", E=3, nu=0.3)
+
+    e0 = Element(material=mat0, A=1, leftnode=n0, rightnode=n1)
+    e1 = Element(material=mat1, A=1, leftnode=n1, rightnode=n2)
 
     K = create_global_matrix([n0, n1, n2], [e0, e1])
     F = build_force_vector([n0, n1, n2])
@@ -25,9 +29,11 @@ def test_triangle_truss_system():
 
     nodes = [n0, n1, n2]
 
-    e0 = Element(E=200e9, A=0.001, leftnode=n0, rightnode=n1)
-    e1 = Element(E=200e9, A=0.001, leftnode=n0, rightnode=n2)
-    e2 = Element(E=200e9, A=0.001, leftnode=n1, rightnode=n2)
+    steel = Material(name="steel", E=200e9, nu=0.3)
+
+    e0 = Element(material=steel, A=0.001, leftnode=n0, rightnode=n1)
+    e1 = Element(material=steel, A=0.001, leftnode=n0, rightnode=n2)
+    e2 = Element(material=steel, A=0.001, leftnode=n1, rightnode=n2)
 
     elements = [e0, e1, e2]
 
@@ -51,7 +57,8 @@ def test_triangle_element_system():
     n2 = Node(identifier=2, posx=1.0, posy=4.0, force_x=1000, force_y=-500)
 
     nodes = [n0, n1, n2]
-    tri = TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=n0, node_b=n1, node_c=n2)
+    steel = Material(name="steel", E=200e9, nu=0.3)
+    tri = TriangleElement(material=steel, thickness=0.01, node_a=n0, node_b=n1, node_c=n2)
     elements = [tri]
 
     K = create_global_matrix(nodes, elements)
@@ -79,8 +86,10 @@ def test_multi_triangle_mesh():
 
     nodes = [n0, n1, n2, n3]
 
-    tri1 = TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=n0, node_b=n1, node_c=n2)
-    tri2 = TriangleElement(E=200e9, nu=0.3, thickness=0.01, node_a=n0, node_b=n2, node_c=n3)
+    steel = Material(name="steel", E=200e9, nu=0.3)
+
+    tri1 = TriangleElement(material=steel, thickness=0.01, node_a=n0, node_b=n1, node_c=n2)
+    tri2 = TriangleElement(material=steel, thickness=0.01, node_a=n0, node_b=n2, node_c=n3)
 
     elements = [tri1, tri2]
 
