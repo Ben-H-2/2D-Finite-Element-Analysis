@@ -4,11 +4,7 @@ from fea.material import Material
 from .node import Node
 from .element import TriangleElement
 from .solver import (
-    create_global_matrix,
-    build_force_vector,
-    apply_boundary_conditions,
-    solve_system,
-    expand_displacements,
+    build_node_index
     )
 
 
@@ -58,27 +54,28 @@ def build_deformed_points_array(nodes,full_u,scale=1):
         points.append(coords)
     return points
 
-def build_stress_array(elements, full_u):
+def build_stress_array(elements, full_u, node_index):
     von_mises_stress_list = []
     for element in elements:
-        von_mises_stress = element.get_von_mises_stress(full_u)
+        von_mises_stress = element.get_von_mises_stress(full_u, node_index)
         von_mises_stress_list.append(von_mises_stress)
     return von_mises_stress_list
 
-def render_mesh(nodes,elements,full_u=None,scale=1):
+def render_mesh(nodes, elements, full_u=None, scale=1):
     stress_array = None
     if full_u is None:
         points = build_points_array(nodes)
     else:
-        points = build_deformed_points_array(nodes,full_u,scale)
-        stress_array = np.array(build_stress_array(elements, full_u))
+        points = build_deformed_points_array(nodes, full_u, scale)
+        node_index = build_node_index(nodes)
+        stress_array = np.array(build_stress_array(elements, full_u, node_index))
     node_to_index = build_node_index_map(nodes)
-    cells = build_cells_array(elements,node_to_index)
+    cells = build_cells_array(elements, node_to_index)
 
     points_array = np.array(points)
     cells_array = np.array(cells)
 
-    mesh = pv.PolyData(points_array, faces = cells_array)
+    mesh = pv.PolyData(points_array, faces=cells_array)
     if stress_array is not None:
         mesh.cell_data["von_mises_stress"] = stress_array
     return mesh
@@ -154,42 +151,8 @@ def generate_rectangle_mesh(length,height,nx,ny,is_fixed_fn, force_fn):
     return nodes, elements
 
 
-
-
 if __name__ == "__main__":
-
-    length = 2.0
-    height = 2.0
-    nx = 4
-    ny = 4   # even, so row and (ny - row) form clean mirror pairs
-
-    is_fixed_fn = make_edge_fixer("left", nx, ny)
-    force_fn = make_edge_loader(0, -10, "right", nx, ny)
-
-    nodes, elements = generate_rectangle_mesh(length, height, nx, ny, is_fixed_fn, force_fn)
-
-    K = create_global_matrix(nodes, elements)
-    F = build_force_vector(nodes)
-    K_r, F_r, remove = apply_boundary_conditions(K, F, nodes)
-    u_reduced = solve_system(K_r, F_r)
-    full_u = expand_displacements(u_reduced, remove, len(nodes) * 2)
-
-    # Rebuild node_grid lookup so we can find mirrored pairs by (col, row)
-    node_grid = {}
-    for n in nodes:
-        col = round(n.posx / (length / nx))
-        row = round(n.posy / (height / ny))
-        node_grid[(col, row)] = n
-
-    print(f"{'col':>4} {'row':>4} {'ux':>12} {'uy':>12}   mirror_row {'ux_mirror':>12} {'uy_mirror':>12}")
-    for col in range(nx + 1):
-        for row in range(ny // 2 + 1):
-            mirror_row = ny - row
-            n1 = node_grid[(col, row)]
-            n2 = node_grid[(col, mirror_row)]
-            ux1 = full_u[n1.identifier * 2]
-            uy1 = full_u[n1.identifier * 2 + 1]
-            ux2 = full_u[n2.identifier * 2]
-            uy2 = full_u[n2.identifier * 2 + 1]
-            print(f"{col:>4} {row:>4} {ux1:>12.6e} {uy1:>12.6e}   {mirror_row:>10} {ux2:>12.6e} {uy2:>12.6e}")
+    pass
+ 
+    
 
