@@ -34,7 +34,7 @@ def build_force_vector(nodes, node_index):
         F[idx*2+1] = node.force_y
     return F
 
-def apply_boundary_conditions(K, F, nodes, node_index):
+def reduce_system(K, F, nodes, node_index):
     n = len(nodes)*2
     remove = []
     for node in nodes:

@@ -2,7 +2,7 @@ from fea.node import Node
 from fea.element import Element,TriangleElement,ElementBase
 from fea.material import Material
 from fea.solver import build_node_index, create_global_matrix, build_force_vector,reduce_system,expand_displacements,solve_system
-from fea.visualisation import render_mesh, show_mesh
+from fea.visualisation import render_mesh, show_mesh,render_model
 
 class AnalysisModel:
     def __init__(self):
@@ -12,6 +12,8 @@ class AnalysisModel:
         self._next_id = 0
         self.u = None
         self.K = None 
+
+        self._add_default_materials()
 
     def add_node(self, posx, posy = 0):
         new_node = Node(identifier=self._next_id,posx = posx,posy = posy)
@@ -205,5 +207,5 @@ class AnalysisModel:
         pass
 
     def plot_results(self, scale=1):
-        mesh = render_mesh(self.nodes, self.elements, full_u=self.u, scale=scale)
+        mesh = render_model(self, deformed=(self.u is not None), scale=scale)
         show_mesh(mesh, show_edges=True)
