@@ -17,11 +17,15 @@ class ElementBase(ABC):
         pass
 
     @abstractmethod
-    def get_von_mises_stress(self, u):
+    def get_von_mises_stress(self, u, node_index):
         pass
 
     @abstractmethod
     def get_edge_nodes(self, edge=None):
+        pass
+
+    @abstractmethod
+    def get_strain(self, u, node_index):
         pass
 
 class Element(ElementBase):
@@ -91,8 +95,8 @@ class Element(ElementBase):
         stress = self.material.E * strain
         return stress
     
-    def get_von_mises_stress(self,full_u):
-        von_mises_stress = self.get_stress(full_u)
+    def get_von_mises_stress(self, full_u, node_index):
+        von_mises_stress = self.get_stress(full_u, node_index)
         return von_mises_stress
     
 class TriangleElement(ElementBase):
@@ -164,22 +168,8 @@ class TriangleElement(ElementBase):
         stress = self.get_D_matrix() @ strain
         return stress
     
-    def get_von_mises_stress(self, u):
-        stress = self.get_stress(u)
+    def get_von_mises_stress(self, u, node_index):
+        stress = self.get_stress(u, node_index)
         sigma_x, sigma_y, tau_xy = stress
         von_mises = np.sqrt(sigma_x**2-sigma_x*sigma_y+sigma_y**2+3*tau_xy**2)
         return von_mises
-
-
-
-
-
-
-        
-
-
-    
-    
-        
-    
-
