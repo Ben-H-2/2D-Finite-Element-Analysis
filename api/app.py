@@ -74,6 +74,10 @@ def calculate(req: CalculateRequest):
     refine_mesh(model, times=req.refine_times)
     model.solve()
     node_index = model._node_index
+    if node_index is None:
+        from fea.solver import build_node_index
+        node_index = build_node_index(model.nodes)
+        model._node_index = node_index
     von_mises = model.get_von_mises_stresses()
 
     return {
