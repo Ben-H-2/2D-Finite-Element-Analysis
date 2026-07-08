@@ -17,6 +17,14 @@
     <button id="calculate-btn">Calculate</button>
     <button id="toggle-stress-btn">Toggle Stress</button>
   </div>
+  <div id="node-panel" style="display:none; position:absolute; background:#333; color:white; padding:10px; border-radius:4px;">
+    <label>Force X: <input id="panel-fx" type="number" value="0"></label><br>
+    <label>Force Y: <input id="panel-fy" type="number" value="0"></label><br>
+    <label>Fix X: <input id="panel-fixx" type="checkbox"></label>
+    <label>Fix Y: <input id="panel-fixy" type="checkbox"></label><br>
+    <button id="panel-apply">Apply</button>
+    <button id="panel-cancel">Cancel</button>
+  </div>
   <canvas id="canvas" width="900" height="600"></canvas>
   <script src="app.js"></script>
 </body>

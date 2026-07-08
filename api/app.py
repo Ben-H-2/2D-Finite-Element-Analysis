@@ -73,10 +73,20 @@ def calculate(req: CalculateRequest):
 
     refine_mesh(model, times=req.refine_times)
     model.solve()
+    node_index = model._node_index
+    von_mises = model.get_von_mises_stresses()
 
     return {
+        "nodes": [
+            {"id": node_index[n], "posx": n.posx, "posy": n.posy}
+            for n in model.nodes
+        ],
+        "elements": [
+            {"node_ids": [node_index[n] for n in el.get_nodes()]}
+            for el in model.elements
+        ],
         "displacements": model.get_displacements().tolist(),
-        "von_mises": [float(v) for v in model.get_von_mises_stresses()],
+        "von_mises": [float(von_mises[el]) for el in model.elements],
     }
 
 
