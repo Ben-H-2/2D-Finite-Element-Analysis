@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FEA Editor</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #toolbar { padding: 8px; background: #222; color: white; }
+    #toolbar button.active { background: #4a9; }
+    canvas { background: #fafafa; display: block; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="mode-node">Place Node</button>
+    <button id="mode-triangle">Make Triangle</button>
+    <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="4"></label>
+    <button id="calculate-btn">Calculate</button>
+    <button id="toggle-stress-btn">Toggle Stress</button>
+  </div>
+  <canvas id="canvas" width="900" height="600"></canvas>
+  <script src="app.js"></script>
+</body>
+</html>

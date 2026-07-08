@@ -1,9 +1,18 @@
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from fea.mesh import refine_mesh
-
 from fea.model import AnalysisModel
 from fea.element import Element, TriangleElement
 
@@ -29,6 +38,17 @@ class CalculateRequest(BaseModel):
     nodes: list[NodeIn]
     elements: list[ElementIn]
     refine_times: int = Field(default=1, ge=0, le=4)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/")
+def root():
+    index_file = STATIC_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return {"message": "Frontend not found"}
 
 @app.post("/calculate")
 def calculate(req: CalculateRequest):
@@ -60,4 +80,8 @@ def calculate(req: CalculateRequest):
     }
 
 
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("api.app:app", host="0.0.0.0", port=8000, reload=True)
