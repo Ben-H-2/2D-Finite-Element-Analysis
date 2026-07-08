@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from fea.mesh import refine_mesh
 
 from fea.model import AnalysisModel
 from fea.element import Element, TriangleElement
@@ -26,6 +28,7 @@ class ElementIn(BaseModel):
 class CalculateRequest(BaseModel):
     nodes: list[NodeIn]
     elements: list[ElementIn]
+    refine_times: int = Field(default=1, ge=0, le=4)
 
 @app.post("/calculate")
 def calculate(req: CalculateRequest):
@@ -48,6 +51,7 @@ def calculate(req: CalculateRequest):
                                      node_a=nodes[0], node_b=nodes[1], node_c=nodes[2])
         model.add_element(elem)
 
+    refine_mesh(model, times=req.refine_times)
     model.solve()
 
     return {
