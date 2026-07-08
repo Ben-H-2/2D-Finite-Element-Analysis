@@ -21,7 +21,8 @@ def test_three_node_spring_system():
     K_r, F_r, remove = reduce_system(K, F, [n0, n1, n2],node_index)
     u = solve_system(K_r, F_r)
 
-    assert np.allclose(u, [2.0, 5.333333], atol=1e-4)
+    u_values = u.toarray().ravel() if hasattr(u, "toarray") else np.asarray(u).ravel()
+    assert np.allclose(u_values, [2.0, 5.333333], atol=1e-4)
 
 def test_triangle_truss_system():
     n0 = Node(identifier=0, posx=0.0, posy=0.0, is_fixed_x=True, is_fixed_y=True)

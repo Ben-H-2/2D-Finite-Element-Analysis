@@ -1,39 +1,42 @@
+from typing import Optional
+
 import numpy as np 
 from fea.solver import get_dofs
 from abc import ABC, abstractmethod
 from fea.material import Material
+from fea.node import Node
 
 class ElementBase(ABC):
     @abstractmethod
-    def get_nodes(self):
-        pass
+    def get_nodes(self) -> list:
+        raise NotImplementedError
 
     @abstractmethod
     def create_stiffness_matrix(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_stress(self, u, node_index):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_von_mises_stress(self, u, node_index):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_edge_nodes(self, edge=None):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_strain(self, u, node_index):
-        pass
+        raise NotImplementedError
 
 class Element(ElementBase):
-    def __init__(self, material, A, leftnode = None, rightnode = None):
-        self.leftnode = leftnode
-        self.rightnode = rightnode
-        self.material = material
-        self.A = A
+    def __init__(self, material: Material, A: float, leftnode: Optional[Node] = None, rightnode: Optional[Node] = None):
+        self.leftnode: Optional[Node] = leftnode
+        self.rightnode: Optional[Node] = rightnode
+        self.material: Material = material
+        self.A: float = A
 
     def get_nodes(self):
         return[self.leftnode, self.rightnode]
@@ -42,14 +45,22 @@ class Element(ElementBase):
         return (self.leftnode, self.rightnode)
 
     def get_length(self):
-        delta_y=self.rightnode.posy-self.leftnode.posy
-        delta_x=self.rightnode.posx-self.leftnode.posx
-        length=np.sqrt(delta_y*delta_y+delta_x*delta_x)
+        if self.leftnode is None or self.rightnode is None:
+            raise ValueError("Element nodes are not assigned.")
+        left = self.leftnode
+        right = self.rightnode
+        delta_y = right.posy - left.posy
+        delta_x = right.posx - left.posx
+        length = np.sqrt(delta_y * delta_y + delta_x * delta_x)
         return length
         
     def get_angle(self):
-        delta_y=self.rightnode.posy-self.leftnode.posy
-        delta_x=self.rightnode.posx-self.leftnode.posx
+        if self.leftnode is None or self.rightnode is None:
+            raise ValueError("Element nodes are not assigned.")
+        left = self.leftnode
+        right = self.rightnode
+        delta_y = right.posy - left.posy
+        delta_x = right.posx - left.posx
         angle = np.arctan2(delta_y, delta_x)
         return angle
 
@@ -100,12 +111,12 @@ class Element(ElementBase):
         return von_mises_stress
     
 class TriangleElement(ElementBase):
-    def __init__(self, material, thickness, node_a, node_b, node_c):
-        self.material = material
-        self.thickness = thickness
-        self.node_a = node_a
-        self.node_b = node_b
-        self.node_c = node_c
+    def __init__(self, material: Material, thickness: float, node_a: Optional[Node], node_b: Optional[Node], node_c: Optional[Node]):
+        self.material: Material = material
+        self.thickness: float = thickness
+        self.node_a: Optional[Node] = node_a
+        self.node_b: Optional[Node] = node_b
+        self.node_c: Optional[Node] = node_c
 
     def get_nodes(self):
         return[self.node_a, self.node_b, self.node_c]
@@ -121,10 +132,14 @@ class TriangleElement(ElementBase):
         return edges[edge]
 
     def get_area(self):
+        if self.node_a is None or self.node_b is None or self.node_c is None:
+            raise ValueError("Triangle element nodes are not assigned.")
         area = abs(0.5*(self.node_a.posx*(self.node_b.posy-self.node_c.posy)+self.node_b.posx*(self.node_c.posy-self.node_a.posy)+self.node_c.posx*(self.node_a.posy-self.node_b.posy)))
         return area
     
     def get_bc_terms(self):
+        if self.node_a is None or self.node_b is None or self.node_c is None:
+            raise ValueError("Triangle element nodes are not assigned.")
         b1 = self.node_b.posy-self.node_c.posy
         b2 = self.node_c.posy-self.node_a.posy
         b3 = self.node_a.posy-self.node_b.posy

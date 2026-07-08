@@ -87,7 +87,6 @@ def show_mesh(mesh, show_edges=False, edge_color="black", line_width=3):
     plotter = pv.Plotter()
     plotter.add_mesh(mesh, show_edges=show_edges, edge_color=edge_color, line_width=line_width, scalars = scalars_to_use)
     plotter.add_text("W: wireframe   S: surface", font_size=10)
-    plotter.view_xy()
     plotter.show()
 
 def make_edge_fixer(edge, nx, ny):

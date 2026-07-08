@@ -1,3 +1,7 @@
+from typing import Optional
+
+import numpy as np
+
 from fea.node import Node
 from fea.element import Element,TriangleElement,ElementBase
 from fea.material import Material
@@ -6,22 +10,23 @@ from fea.visualisation import render_mesh, show_mesh,render_model
 
 class AnalysisModel:
     def __init__(self):
-        self.elements = []
-        self.nodes = []
-        self.materials = {}
+        self.elements: list[ElementBase] = []
+        self.nodes: list[Node] = []
+        self.materials: dict[str, Material] = {}
         self._next_id = 0
-        self.u = None
-        self.K = None 
+        self.u: Optional[np.ndarray] = None
+        self.K: Optional[object] = None
+        self._node_index: Optional[dict[Node, int]] = None
 
         self._add_default_materials()
 
-    def add_node(self, posx, posy = 0):
+    def add_node(self, posx: float, posy: float = 0.0):
         new_node = Node(identifier=self._next_id,posx = posx,posy = posy)
         self._next_id += 1
         self.nodes.append(new_node)
         return new_node
 
-    def add_element(self, element):
+    def add_element(self, element: ElementBase):
         if not isinstance(element, ElementBase):
             raise TypeError(f"{type(element).__name__} is not a valid element type.")
         for node in element.get_nodes():
@@ -147,7 +152,7 @@ class AnalysisModel:
         return self.u
 
     def get_reactions(self):
-        if self.u is None:
+        if self.u is None or self.K is None or self._node_index is None:
             raise ValueError("Model has not been solved yet. Call solve() first.")
         F_full = self.K @ self.u
         reactions = {}
