@@ -37,7 +37,7 @@ class ElementIn(BaseModel):
 class CalculateRequest(BaseModel):
     nodes: list[NodeIn]
     elements: list[ElementIn]
-    refine_times: int = Field(default=1, ge=0, le=4)
+    refine_times: int = Field(default=1, ge=0, le=5)
 
 @app.get("/health")
 def health():

@@ -2,6 +2,8 @@ const canvas = document.getElementById("canvas"); //document represents the whol
 const ctx = canvas.getContext("2d")
 const NODE_RADIUS = 6; //default to 6 but here so can be modified later
 const NODE_SELECTION_RADIUS = 16; // larger click area for easier selection
+const LOGICAL_WIDTH = 900;
+const LOGICAL_HEIGHT = 600;
 
 let nodes = []; //let means it is like a python variable and can be changed unlike const
 let elements = []; //; represents new line, indentation is visual in js
@@ -9,8 +11,12 @@ let nextNodeId = 0;
 let mode = "node";
 let selectedNodeIds = [];
 let showStress = false;
+let showDeformed = false;
+let showOutlines = false;
 let lastResult = null;
 let editingNode = null; //tracks which node the panel is currently editing
+let scale = 1;
+let deformationScale = 50;
 
 function updateModeButtons() {
     const nodeButton = document.getElementById("mode-node");
@@ -39,6 +45,19 @@ if (triangleButton) {
 }
 updateModeButtons();
 
+function resizeCanvas() {
+    const availableWidth = window.innerWidth;
+    const availableHeight = window.innerHeight;
+    scale = Math.min(availableWidth / LOGICAL_WIDTH, availableHeight / LOGICAL_HEIGHT);
+    canvas.width = availableWidth;
+    canvas.height = availableHeight;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    draw();
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
 function findNodeNear(x, y, radius = NODE_SELECTION_RADIUS) { // same as python function but uses "function" and {}
     for (const node of nodes) { //js equivalent of for node in nodes
         const dx = node.x - x;
@@ -62,6 +81,7 @@ function drawResultMesh() { // draws the mesh the BACKEND solved (after refine_m
     const resultNodes = lastResult.nodes; //[{id, posx, posy}, ...]
     const resultElements = lastResult.elements; //[{node_ids: [a,b,c]}, ...]
     const vonMises = lastResult.von_mises;
+    const displacements = lastResult.displacements; //[{ux, uy}, ...]
 
     const maxStress = Math.max(...vonMises);
 
@@ -74,23 +94,45 @@ function drawResultMesh() { // draws the mesh the BACKEND solved (after refine_m
         const c = nodeById.get(idC);
         if (!a || !b || !c) return;
 
+        const posA = showDeformed
+            ? {x: a.posx + displacements[idA * 2] * deformationScale, y: a.posy + displacements[idA * 2 + 1] * deformationScale}
+            : {x: a.posx, y: a.posy};
+        const posB = showDeformed
+            ? {x: b.posx + displacements[idB * 2] * deformationScale, y: b.posy + displacements[idB * 2 + 1] * deformationScale}
+            : {x: b.posx, y: b.posy};
+        const posC = showDeformed
+            ? {x: c.posx + displacements[idC * 2] * deformationScale, y: c.posy + displacements[idC * 2 + 1] * deformationScale}
+            : {x: c.posx, y: c.posy};
+
         ctx.beginPath();
-        ctx.moveTo(a.posx, a.posy);
-        ctx.lineTo(b.posx, b.posy);
-        ctx.lineTo(c.posx, c.posy);
+        ctx.moveTo(posA.x, posA.y);
+        ctx.lineTo(posB.x, posB.y);
+        ctx.lineTo(posC.x, posC.y);
         ctx.closePath();
 
         ctx.fillStyle = stressColor(vonMises[i], maxStress);
-        ctx.fill();
-        ctx.strokeStyle = "black";
-        ctx.stroke();
-    });
+    ctx.fill();
 
-    resultNodes.forEach(n => { //small dots just so refined nodes are visible, not interactive
-        ctx.beginPath();
-        ctx.arc(n.posx, n.posy, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "black";
-        ctx.fill();
+    ctx.lineJoin = "round";
+    if (showOutlines) {
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    } else {
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+    });
+    resultNodes.forEach((n) => {
+        const x = showDeformed ? n.posx + displacements[n.id * 2] * deformationScale : n.posx;
+        const y = showDeformed ? n.posy + displacements[n.id * 2 + 1] * deformationScale : n.posy;
+        if (showOutlines) {
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = "black";
+            ctx.fill();
+        }
     });
 }
 
@@ -147,7 +189,7 @@ function draw() {
 }
 
 canvas.addEventListener("click", (e) => { //monitors for click events on the canvas and calls the function when it happens
-    const x = e.offsetX, y = e.offsetY;
+    const x = e.offsetX / scale, y = e.offsetY / scale;
 
     if (mode === "node") {
         showStress = false;  //pushes the user into edit mode of a local mesh
@@ -178,7 +220,7 @@ canvas.addEventListener("click", (e) => { //monitors for click events on the can
 
 canvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    const x = e.offsetX, y = e.offsetY;
+    const x = e.offsetX / scale, y = e.offsetY / scale;
     const node = findNodeNear(x, y);
     if (!node) return;
     showStress = false;
@@ -213,8 +255,13 @@ document.getElementById("panel-cancel").onclick = () => {
 
 document.getElementById("calculate-btn").onclick = async () => {
     const refineTimes = parseInt(document.getElementById("refine-input").value);
+    
+    // Filter to only send nodes that are used by elements
+    const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
+    const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
+    
     const payload = {
-        nodes: nodes.map(n => ({
+        nodes: usedNodes.map(n => ({
             id: n.id, posx: n.x, posy: n.y,
             force_x: n.force_x, force_y: n.force_y,
             is_fixed_x: n.is_fixed_x, is_fixed_y: n.is_fixed_y
@@ -243,5 +290,44 @@ document.getElementById("toggle-stress-btn").onclick = () => {
     showStress = !showStress;
     draw();
 };
+
+document.getElementById("toggle-deformed-btn").onclick = () => {
+    showDeformed = !showDeformed;
+    draw();
+};
+
+document.getElementById("toggle-outlines-btn").onclick = () => {
+    showOutlines = !showOutlines;
+    draw();
+};
+
+const deformSlider = document.getElementById("deform-scale-slider");
+const deformMinInput = document.getElementById("deform-scale-min");
+const deformMaxInput = document.getElementById("deform-scale-max");
+
+if (deformSlider) {
+    deformSlider.addEventListener("input", () => {
+        deformationScale = parseFloat(deformSlider.value) || 0;
+        document.getElementById("deform-scale-value").textContent = deformationScale;
+        draw();
+    });
+}
+
+if (deformMinInput) {
+    deformMinInput.addEventListener("input", () => {
+        const min = parseFloat(deformMinInput.value) || 0;
+        deformSlider.min = min;
+    });
+}
+
+if (deformMaxInput) {
+    deformMaxInput.addEventListener("input", () => {
+        const max = parseFloat(deformMaxInput.value) || 200;
+        deformSlider.max = max;
+    });
+
+}
+
+
 
 draw();

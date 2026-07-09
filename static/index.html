@@ -3,19 +3,56 @@
 <head>
   <title>FEA Editor</title>
   <style>
-    body { margin: 0; font-family: sans-serif; }
+    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
     #toolbar { padding: 8px; background: #222; color: white; }
     #toolbar button.active { background: #4a9; }
-    canvas { background: #fafafa; display: block; }
+    canvas { background: #fafafa; display: block; flex: 1; }
+    .slider-control {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      background: #222;
+      color: white;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .slider-label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 0 0 auto;
+      min-width: 220px;
+    }
+    .slider-control input[type="range"] {
+      flex: 1 1 100%;
+      min-width: 220px;
+      width: 100%;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    .range-bounds {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    .range-bounds input {
+      width: 64px;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
   <div id="toolbar">
     <button id="mode-node">Place Node</button>
     <button id="mode-triangle">Make Triangle</button>
-    <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="4"></label>
+    <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="5"></label>
     <button id="calculate-btn">Calculate</button>
     <button id="toggle-stress-btn">Toggle Stress</button>
+    <button id="toggle-outlines-btn">Toggle Outlines</button>
+    <button id="toggle-deformed-btn">Toggle Deformation</button>
   </div>
   <div id="node-panel" style="display:none; position:absolute; background:#333; color:white; padding:10px; border-radius:4px;">
     <label>Force X: <input id="panel-fx" type="number" value="0"></label><br>
@@ -25,7 +62,18 @@
     <button id="panel-apply">Apply</button>
     <button id="panel-cancel">Cancel</button>
   </div>
-  <canvas id="canvas" width="900" height="600"></canvas>
+  <div class="slider-control">
+    <div class="slider-label">
+      <label for="deform-scale-slider">Deformation scale:</label>
+      <span id="deform-scale-value">50</span>
+    </div>
+    <input type="range" id="deform-scale-slider" min="0" max="200" value="50" step="1">
+    <div class="range-bounds">
+        <input type="number" id="deform-scale-min" value="0">
+        <input type="number" id="deform-scale-max" value="200">
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
   <script src="app.js"></script>
 </body>
 </html>
