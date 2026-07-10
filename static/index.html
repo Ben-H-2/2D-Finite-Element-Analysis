@@ -48,6 +48,7 @@
   <div id="toolbar">
     <button id="mode-node">Place Node</button>
     <button id="mode-triangle">Make Triangle</button>
+    <button id="mode-rectangle">Make Rectangle</button>
     <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="5"></label>
     <button id="calculate-btn">Calculate</button>
     <button id="toggle-stress-btn">Toggle Stress</button>
@@ -65,12 +66,12 @@
   <div class="slider-control">
     <div class="slider-label">
       <label for="deform-scale-slider">Deformation scale:</label>
-      <span id="deform-scale-value">50</span>
+      <span id="deform-scale-value">1</span>
     </div>
-    <input type="range" id="deform-scale-slider" min="0" max="200" value="50" step="1">
+    <input type="range" id="deform-scale-slider" min="0" max="1000" value="1" step="1">
     <div class="range-bounds">
         <input type="number" id="deform-scale-min" value="0">
-        <input type="number" id="deform-scale-max" value="200">
+        <input type="number" id="deform-scale-max" value="1000">
     </div>
   </div>
   <canvas id="canvas"></canvas>

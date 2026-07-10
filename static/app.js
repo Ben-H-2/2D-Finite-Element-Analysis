@@ -1,6 +1,6 @@
 const canvas = document.getElementById("canvas"); //document represents the whole webpage
 const ctx = canvas.getContext("2d")
-const NODE_RADIUS = 6; //default to 6 but here so can be modified later
+const NODE_RADIUS = 3; //default to 3 but here so can be modified later
 const NODE_SELECTION_RADIUS = 16; // larger click area for easier selection
 const LOGICAL_WIDTH = 900;
 const LOGICAL_HEIGHT = 600;
@@ -21,12 +21,16 @@ let deformationScale = 50;
 function updateModeButtons() {
     const nodeButton = document.getElementById("mode-node");
     const triangleButton = document.getElementById("mode-triangle");
+    const rectangleButton = document.getElementById("mode-rectangle")
 
     if (nodeButton) {
         nodeButton.classList.toggle("active", mode === "node");
     }
     if (triangleButton) {
         triangleButton.classList.toggle("active", mode === "triangle");
+    }
+    if (rectangleButton) {
+        rectangleButton.classList.toggle("active", mode == "rectangle")
     }
 }
 
@@ -35,13 +39,24 @@ function setMode(newMode) { //can recognise the button mode
     updateModeButtons();
 }
 
+function syncToggleButton(buttonId, isActive) {
+    const btn = document.getElementById(buttonId);
+    if (btn) {
+        btn.classList.toggle("active", isActive);
+    }
+}
+
 const nodeButton = document.getElementById("mode-node");
 const triangleButton = document.getElementById("mode-triangle");
+const rectangleButton = document.getElementById("mode-rectangle")
 if (nodeButton) {
     nodeButton.onclick = () => setMode("node");
 }
 if (triangleButton) {
     triangleButton.onclick = () => setMode("triangle");
+}
+if (rectangleButton) {
+    rectangleButton.onclick = () => setMode("rectangle")
 }
 updateModeButtons();
 
@@ -213,8 +228,40 @@ canvas.addEventListener("click", (e) => { //monitors for click events on the can
             elements.push({ type: "triangle", node_ids: [...selectedNodeIds] });
             selectedNodeIds = [];
         }
-        draw();
+    } else if (mode == "rectangle") {
+        showStress = false;
+        const Node = findNodeNear(x, y);
+        if (!Node) return;
+
+        if (!selectedNodeIds.includes(Node.id)) {
+            selectedNodeIds.push(Node.id);
+        }
+
+        if (selectedNodeIds.length === 2) {
+            let node_a = nodes.find(n => n.id === selectedNodeIds[0]);
+            let node_b = nodes.find(n => n.id === selectedNodeIds[1]);
+            let node_c = ({
+                id: nextNodeId++,
+                x: (node_a.x), y: (node_b.y),
+                force_x: 0, force_y: 0,
+                is_fixed_x: false, is_fixed_y: false
+            });
+            let node_d = ({
+                id: nextNodeId++,
+                x: (node_b.x), y: (node_a.y),
+                force_x: 0, force_y: 0,
+                is_fixed_x: false, is_fixed_y: false
+            });
+            nodes.push(node_c)
+            nodes.push(node_d)
+            elements.push({ type: "triangle", node_ids: [node_a.id,node_c.id,node_d.id]
+            })
+            elements.push({ type: "triangle", node_ids: [node_b.id,node_c.id,node_d.id]
+            });
+            selectedNodeIds = []
+        }
     }
+        draw();
 });
 
 
@@ -283,21 +330,24 @@ document.getElementById("calculate-btn").onclick = async () => {
     }
     lastResult = await response.json();
     showStress = true; //flip to results view automatically once solved
+    syncToggleButton("toggle-stress-btn", showStress);
     draw();
 };
 
 document.getElementById("toggle-stress-btn").onclick = () => {
     showStress = !showStress;
+    syncToggleButton("toggle-stress-btn", showStress);
     draw();
 };
-
 document.getElementById("toggle-deformed-btn").onclick = () => {
     showDeformed = !showDeformed;
+    syncToggleButton("toggle-deformed-btn", showDeformed);
     draw();
 };
 
 document.getElementById("toggle-outlines-btn").onclick = () => {
     showOutlines = !showOutlines;
+    syncToggleButton("toggle-outlines-btn", showOutlines);
     draw();
 };
 
