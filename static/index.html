@@ -56,12 +56,35 @@
     <button id="toggle-deformed-btn">Toggle Deformation</button>
   </div>
   <div id="node-panel" style="display:none; position:absolute; background:#333; color:white; padding:10px; border-radius:4px;">
+    <strong>Edit Node</strong><br>
     <label>Force X: <input id="panel-fx" type="number" value="0"></label><br>
     <label>Force Y: <input id="panel-fy" type="number" value="0"></label><br>
     <label>Fix X: <input id="panel-fixx" type="checkbox"></label>
     <label>Fix Y: <input id="panel-fixy" type="checkbox"></label><br>
-    <button id="panel-apply">Apply</button>
-    <button id="panel-cancel">Cancel</button>
+    <button id="node-panel-apply">Apply</button>
+    <button id="node-panel-cancel">Cancel</button>
+  </div>
+  <div id="edge-panel" style="display:none; position:absolute; background:#333; color:white; padding:10px; border-radius:4px;">
+    <strong>Edit Edge</strong><br>
+    <label>Type:
+        <select id="edge-type">
+            <option value="fix">Fix</option>
+            <option value="force">Force</option>
+        </select>
+    </label>
+
+    <div id="edge-fix-fields">
+        <label><input type="checkbox" id="edge-fixx"> Fix X</label>
+        <label><input type="checkbox" id="edge-fixy"> Fix Y</label>
+    </div>
+
+    <div id="edge-force-fields" style="display:none;">
+        <label>Force X: <input type="number" id="edge-fx" value="0"></label>
+        <label>Force Y: <input type="number" id="edge-fy" value="0"></label>
+    </div>
+
+    <button id="edge-panel-apply">Apply</button>
+    <button id="edge-panel-cancel">Cancel</button>
   </div>
   <div class="slider-control">
     <div class="slider-label">

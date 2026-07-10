@@ -1,12 +1,13 @@
-const canvas = document.getElementById("canvas"); //document represents the whole webpage
+const canvas = document.getElementById("canvas"); 
 const ctx = canvas.getContext("2d")
-const NODE_RADIUS = 3; //default to 3 but here so can be modified later
-const NODE_SELECTION_RADIUS = 16; // larger click area for easier selection
+const NODE_RADIUS = 3; 
+const NODE_SELECTION_RADIUS = 16; 
+const ELEMENT_SELECTION_RADIUS = 16;
 const LOGICAL_WIDTH = 900;
 const LOGICAL_HEIGHT = 600;
 
-let nodes = []; //let means it is like a python variable and can be changed unlike const
-let elements = []; //; represents new line, indentation is visual in js
+let nodes = []; 
+let elements = []; 
 let nextNodeId = 0;
 let mode = "node";
 let selectedNodeIds = [];
@@ -14,7 +15,9 @@ let showStress = false;
 let showDeformed = false;
 let showOutlines = false;
 let lastResult = null;
-let editingNode = null; //tracks which node the panel is currently editing
+let editingNode = null; 
+let editinEdge = null;
+let edgeRules = [];
 let scale = 1;
 let deformationScale = 50;
 
@@ -34,7 +37,7 @@ function updateModeButtons() {
     }
 }
 
-function setMode(newMode) { //can recognise the button mode 
+function setMode(newMode) { 
     mode = newMode;
     updateModeButtons();
 }
@@ -73,8 +76,8 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-function findNodeNear(x, y, radius = NODE_SELECTION_RADIUS) { // same as python function but uses "function" and {}
-    for (const node of nodes) { //js equivalent of for node in nodes
+function findNodeNear(x, y, radius = NODE_SELECTION_RADIUS) { 
+    for (const node of nodes) { 
         const dx = node.x - x;
         const dy = node.y - y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -85,6 +88,55 @@ function findNodeNear(x, y, radius = NODE_SELECTION_RADIUS) { // same as python 
     return null;   
 }
 
+function findEdgeNear(x, y, radius = NODE_SELECTION_RADIUS) {
+    let closestEdge = null;
+    let closestDist = radius;
+
+    for (const el of elements) {
+        const ids = el.node_ids;
+        const edgePairs = [
+            [ids[0], ids[1]],
+            [ids[1], ids[2]],
+            [ids[2], ids[0]]
+        ];
+
+        for (const [idA, idB] of edgePairs) {
+            const a = nodes.find(n => n.id === idA);
+            const b = nodes.find(n => n.id === idB);
+            if (!a || !b) continue;
+
+            const dist = pointToSegmentDistance(x, y, a.x, a.y, b.x, b.y);
+            if (dist <= closestDist) {
+                closestDist = dist;
+                closestEdge = { node_a_id: idA, node_b_id: idB };
+            }
+        }
+    }
+
+    return closestEdge;
+}
+
+function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSq = dx * dx + dy * dy;
+
+    if (lengthSq === 0) {
+        const ddx = px - ax, ddy = py - ay;
+        return Math.sqrt(ddx * ddx + ddy * ddy);
+    }
+
+    let t = ((px - ax) * dx + (py - ay) * dy) / lengthSq;
+    t = Math.max(0, Math.min(1, t));
+
+    const closestX = ax + t * dx;
+    const closestY = ay + t * dy;
+
+    const ddx = px - closestX;
+    const ddy = py - closestY;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+}
+
 function stressColor(value, maxValue) {
     const t = maxValue > 0 ? value / maxValue : 0;
     const r = Math.floor(255 * t);
@@ -92,15 +144,15 @@ function stressColor(value, maxValue) {
     return `rgb(${r}, 0, ${b})`;
 }
 
-function drawResultMesh() { // draws the mesh the BACKEND solved (after refine_mesh ran), not our own nodes/elements
-    const resultNodes = lastResult.nodes; //[{id, posx, posy}, ...]
-    const resultElements = lastResult.elements; //[{node_ids: [a,b,c]}, ...]
+function drawResultMesh() { 
+    const resultNodes = lastResult.nodes; 
+    const resultElements = lastResult.elements; 
     const vonMises = lastResult.von_mises;
-    const displacements = lastResult.displacements; //[{ux, uy}, ...]
+    const displacements = lastResult.displacements; 
 
     const maxStress = Math.max(...vonMises);
 
-    const nodeById = new Map(resultNodes.map(n => [n.id, n])); //same job as findNodeNear but by id lookup instead of distance, O(1) not O(n)
+    const nodeById = new Map(resultNodes.map(n => [n.id, n])); 
 
     resultElements.forEach((el, i) => {
         const [idA, idB, idC] = el.node_ids;
@@ -151,7 +203,7 @@ function drawResultMesh() { // draws the mesh the BACKEND solved (after refine_m
     });
 }
 
-function drawEditableMesh() { // draws OUR clicked nodes/elements -- this is basically your old draw() body, unchanged
+function drawEditableMesh() { 
     elements.forEach((el, i) => {
         const [idA, idB, idC] = el.node_ids;
         const a = nodes.find(n => n.id === idA);
@@ -194,20 +246,20 @@ function drawEditableMesh() { // draws OUR clicked nodes/elements -- this is bas
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); //clears rectangle size of entire canvas as things are automatically drawn on top of one another
+    ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
     if (showStress && lastResult) {
-        drawResultMesh(); //post-solve mesh coloured
+        drawResultMesh(); 
     } else {
-        drawEditableMesh(); //what is clicked so far
+        drawEditableMesh(); 
     }
 }
 
-canvas.addEventListener("click", (e) => { //monitors for click events on the canvas and calls the function when it happens
+canvas.addEventListener("click", (e) => { 
     const x = e.offsetX / scale, y = e.offsetY / scale;
 
     if (mode === "node") {
-        showStress = false;  //pushes the user into edit mode of a local mesh
+        showStress = false; 
         nodes.push({
             id: nextNodeId++,
             x: x, y: y,
@@ -269,22 +321,45 @@ canvas.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const x = e.offsetX / scale, y = e.offsetY / scale;
     const node = findNodeNear(x, y);
-    if (!node) return;
-    showStress = false;
 
-    editingNode = node;
-    document.getElementById("panel-fx").value = node.force_x;
-    document.getElementById("panel-fy").value = node.force_y;
-    document.getElementById("panel-fixx").checked = node.is_fixed_x;
-    document.getElementById("panel-fixy").checked = node.is_fixed_y;
+    if (node) {
+        showStress = false;
 
-    const panel = document.getElementById("node-panel");
-    panel.style.left = e.pageX + "px";
-    panel.style.top = e.pageY + "px";
-    panel.style.display = "block";
+        editingNode = node;
+        document.getElementById("edge-panel").style.display = "none"
+        
+        document.getElementById("panel-fx").value = node.force_x;
+        document.getElementById("panel-fy").value = node.force_y;
+        document.getElementById("panel-fixx").checked = node.is_fixed_x;
+        document.getElementById("panel-fixy").checked = node.is_fixed_y;
+
+        const panel = document.getElementById("node-panel");
+        panel.style.left = e.pageX + "px";
+        panel.style.top = e.pageY + "px";
+        panel.style.display = "block";
+        return;
+    }
+    const edge = findEdgeNear(x, y);
+
+    if (edge) {
+        showStress = false;
+        editingEdge = edge;
+        document.getElementById("node-panel").style.display = "none"
+        const panel = document.getElementById("edge-panel");
+        panel.style.left = e.pageX + "px";
+        panel.style.top = e.pageY + "px";
+        panel.style.display = "block";
+        return;
+    }
 });
 
-document.getElementById("panel-apply").onclick = () => {
+function closeAllPanels() {
+    document.getElementById("node-panel").style.display = "none";
+    document.getElementById("edge-panel").style.display = "none";
+}
+    
+
+document.getElementById("node-panel-apply").onclick = () => {
     if (!editingNode) return;
     editingNode.force_x = parseFloat(document.getElementById("panel-fx").value) || 0;
     editingNode.force_y = parseFloat(document.getElementById("panel-fy").value) || 0;
@@ -295,8 +370,18 @@ document.getElementById("panel-apply").onclick = () => {
     draw();
 };
 
-document.getElementById("panel-cancel").onclick = () => {
+document.getElementById("edge-type").addEventListener("change", (e) => {
+    const isFix = e.target.value === "fix";
+    document.getElementById("edge-fix-fields").style.display = isFix ? "block" : "none";
+    document.getElementById("edge-force-fields").style.display = isFix ? "none" : "block";
+});
+
+document.getElementById("node-panel-cancel").onclick = () => {
     document.getElementById("node-panel").style.display = "none";
+    editingNode = null;
+};
+document.getElementById("edge-panel-cancel").onclick = () => {
+    document.getElementById("edge-panel").style.display = "none";
     editingNode = null;
 };
 
@@ -329,7 +414,7 @@ document.getElementById("calculate-btn").onclick = async () => {
         return;
     }
     lastResult = await response.json();
-    showStress = true; //flip to results view automatically once solved
+    showStress = true; 
     syncToggleButton("toggle-stress-btn", showStress);
     draw();
 };
