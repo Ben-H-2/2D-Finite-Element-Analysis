@@ -12,11 +12,20 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from fea.mesh import refine_mesh
+from fea.mesh import refine_mesh, apply_edge_rules
 from fea.model import AnalysisModel
 from fea.element import Element, TriangleElement
 
 app = FastAPI()
+
+class EdgeRuleIn(BaseModel):
+    node_a_id: int
+    node_b_id: int
+    type: str
+    fix_x: bool = False
+    fix_y: bool = False
+    force_x: float = 0.0
+    force_y: float = 0.0
 
 class NodeIn(BaseModel):
     id: int
@@ -35,6 +44,7 @@ class ElementIn(BaseModel):
     thickness: float = 0.01
 
 class CalculateRequest(BaseModel):
+    edge_rules: list[EdgeRuleIn] = []
     nodes: list[NodeIn]
     elements: list[ElementIn]
     refine_times: int = Field(default=1, ge=0, le=5)
@@ -72,6 +82,7 @@ def calculate(req: CalculateRequest):
         model.add_element(elem)
 
     refine_mesh(model, times=req.refine_times)
+    apply_edge_rules(model, req.edge_rules, id_to_node)
     model.solve()
     node_index = model._node_index
     if node_index is None:

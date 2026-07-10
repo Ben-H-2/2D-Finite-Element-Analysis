@@ -16,7 +16,7 @@ let showDeformed = false;
 let showOutlines = false;
 let lastResult = null;
 let editingNode = null; 
-let editinEdge = null;
+let editingEdge = null;
 let edgeRules = [];
 let scale = 1;
 let deformationScale = 50;
@@ -108,7 +108,13 @@ function findEdgeNear(x, y, radius = NODE_SELECTION_RADIUS) {
             const dist = pointToSegmentDistance(x, y, a.x, a.y, b.x, b.y);
             if (dist <= closestDist) {
                 closestDist = dist;
-                closestEdge = { node_a_id: idA, node_b_id: idB };
+                const a = Math.min(idA, idB);
+                const b = Math.max(idA, idB);
+
+                closestEdge = {
+                    node_a_id: a,
+                    node_b_id: b
+                };  
             }
         }
     }
@@ -292,20 +298,8 @@ canvas.addEventListener("click", (e) => {
         if (selectedNodeIds.length === 2) {
             let node_a = nodes.find(n => n.id === selectedNodeIds[0]);
             let node_b = nodes.find(n => n.id === selectedNodeIds[1]);
-            let node_c = ({
-                id: nextNodeId++,
-                x: (node_a.x), y: (node_b.y),
-                force_x: 0, force_y: 0,
-                is_fixed_x: false, is_fixed_y: false
-            });
-            let node_d = ({
-                id: nextNodeId++,
-                x: (node_b.x), y: (node_a.y),
-                force_x: 0, force_y: 0,
-                is_fixed_x: false, is_fixed_y: false
-            });
-            nodes.push(node_c)
-            nodes.push(node_d)
+            let node_c = findOrCreateNode(node_a.x, node_b.y);
+            let node_d = findOrCreateNode(node_b.x, node_a.y)
             elements.push({ type: "triangle", node_ids: [node_a.id,node_c.id,node_d.id]
             })
             elements.push({ type: "triangle", node_ids: [node_b.id,node_c.id,node_d.id]
@@ -328,10 +322,10 @@ canvas.addEventListener("contextmenu", (e) => {
         editingNode = node;
         document.getElementById("edge-panel").style.display = "none"
         
-        document.getElementById("panel-fx").value = node.force_x;
-        document.getElementById("panel-fy").value = node.force_y;
-        document.getElementById("panel-fixx").checked = node.is_fixed_x;
-        document.getElementById("panel-fixy").checked = node.is_fixed_y;
+        document.getElementById("node-fx").value = node.force_x;
+        document.getElementById("node-fy").value = node.force_y;
+        document.getElementById("node-fixx").checked = node.is_fixed_x;
+        document.getElementById("node-fixy").checked = node.is_fixed_y;
 
         const panel = document.getElementById("node-panel");
         panel.style.left = e.pageX + "px";
@@ -345,6 +339,32 @@ canvas.addEventListener("contextmenu", (e) => {
         showStress = false;
         editingEdge = edge;
         document.getElementById("node-panel").style.display = "none"
+
+        const existingRule = edgeRules.find(r =>
+            r.node_a_id === edge.node_a_id &&
+            r.node_b_id === edge.node_b_id
+        );
+
+        if (existingRule) {
+            document.getElementById("edge-type").value = existingRule.type;
+            updateEdgeFieldVisibility()
+
+            if (existingRule.type === "fix") {
+                document.getElementById("edge-fixx").checked = existingRule.fix_x;
+                document.getElementById("edge-fixy").checked = existingRule.fix_y;
+            } else {
+                document.getElementById("edge-fx").value = existingRule.force_x;
+                document.getElementById("edge-fy").value = existingRule.force_y;
+            }
+        } else {
+            document.getElementById("edge-type").value = "fix";
+            updateEdgeFieldVisibility()
+            document.getElementById("edge-fixx").checked = false;
+            document.getElementById("edge-fixy").checked = false;
+            document.getElementById("edge-fx").value = 0;
+            document.getElementById("edge-fy").value = 0;
+        }
+
         const panel = document.getElementById("edge-panel");
         panel.style.left = e.pageX + "px";
         panel.style.top = e.pageY + "px";
@@ -357,24 +377,44 @@ function closeAllPanels() {
     document.getElementById("node-panel").style.display = "none";
     document.getElementById("edge-panel").style.display = "none";
 }
+
+function findOrCreateNode(x, y, tolerance = 0.01) {
+    for (const node of nodes) {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        if (Math.sqrt(dx * dx + dy * dy) <= tolerance) {
+            return node;
+        }
+    }
+    const newNode = {
+        id: nextNodeId++,
+        x: x, y: y,
+        force_x: 0, force_y: 0,
+        is_fixed_x: false, is_fixed_y: false
+    };
+    nodes.push(newNode);
+    return newNode;
+}
     
 
 document.getElementById("node-panel-apply").onclick = () => {
     if (!editingNode) return;
-    editingNode.force_x = parseFloat(document.getElementById("panel-fx").value) || 0;
-    editingNode.force_y = parseFloat(document.getElementById("panel-fy").value) || 0;
-    editingNode.is_fixed_x = document.getElementById("panel-fixx").checked;
-    editingNode.is_fixed_y = document.getElementById("panel-fixy").checked;
+    editingNode.force_x = parseFloat(document.getElementById("node-fx").value) || 0;
+    editingNode.force_y = parseFloat(document.getElementById("node-fy").value) || 0;
+    editingNode.is_fixed_x = document.getElementById("node-fixx").checked;
+    editingNode.is_fixed_y = document.getElementById("node-fixy").checked;
     document.getElementById("node-panel").style.display = "none";
     editingNode = null;
     draw();
 };
 
-document.getElementById("edge-type").addEventListener("change", (e) => {
-    const isFix = e.target.value === "fix";
+function updateEdgeFieldVisibility() {
+    const isFix = document.getElementById("edge-type").value === "fix";
     document.getElementById("edge-fix-fields").style.display = isFix ? "block" : "none";
     document.getElementById("edge-force-fields").style.display = isFix ? "none" : "block";
-});
+}
+
+document.getElementById("edge-type").addEventListener("change", updateEdgeFieldVisibility);
 
 document.getElementById("node-panel-cancel").onclick = () => {
     document.getElementById("node-panel").style.display = "none";
@@ -382,7 +422,38 @@ document.getElementById("node-panel-cancel").onclick = () => {
 };
 document.getElementById("edge-panel-cancel").onclick = () => {
     document.getElementById("edge-panel").style.display = "none";
-    editingNode = null;
+    editingEdge = null;
+};
+
+document.getElementById("edge-panel-apply").onclick = () => {
+    const type = document.getElementById("edge-type").value;
+
+    const rule = {
+        node_a_id: editingEdge.node_a_id,
+        node_b_id: editingEdge.node_b_id,
+        type: type
+    };
+
+    if (type === "fix") {
+        rule.fix_x = document.getElementById("edge-fixx").checked;
+        rule.fix_y = document.getElementById("edge-fixy").checked;
+    } else {
+        if (type === "fix") {
+            rule.fix_x = document.getElementById("edge-fixx").checked;
+            rule.fix_y = document.getElementById("edge-fixy").checked;
+        } else {
+            rule.force_x = parseFloat(document.getElementById("edge-fx").value) || 0;
+            rule.force_y = parseFloat(document.getElementById("edge-fy").value) || 0;
+        }
+    }
+
+    edgeRules = edgeRules.filter(r =>
+        !(r.node_a_id === rule.node_a_id && r.node_b_id === rule.node_b_id)
+    );
+    edgeRules.push(rule);
+
+    document.getElementById("edge-panel").style.display = "none";
+    editingEdge = null;
 };
 
 document.getElementById("calculate-btn").onclick = async () => {
@@ -401,7 +472,8 @@ document.getElementById("calculate-btn").onclick = async () => {
         elements: elements.map(el => ({
             type: el.type, node_ids: el.node_ids
         })),
-        refine_times: refineTimes
+        refine_times: refineTimes,
+        edge_rules: edgeRules
     };
 
     const response = await fetch("/calculate", {
@@ -413,6 +485,7 @@ document.getElementById("calculate-btn").onclick = async () => {
         alert("Calculation failed: " + (await response.text()));
         return;
     }
+    
     lastResult = await response.json();
     showStress = true; 
     syncToggleButton("toggle-stress-btn", showStress);
@@ -466,3 +539,4 @@ if (deformMaxInput) {
 
 
 draw();
+ 
