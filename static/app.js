@@ -5,6 +5,7 @@ const NODE_SELECTION_RADIUS = 16;
 const ELEMENT_SELECTION_RADIUS = 16;
 const LOGICAL_WIDTH = 900;
 const LOGICAL_HEIGHT = 600;
+const REFINE_WARNING_THRESHOLD = 5; 
 
 let nodes = []; 
 let elements = []; 
@@ -143,6 +144,31 @@ function pointToSegmentDistance(px, py, ax, ay, bx, by) {
     return Math.sqrt(ddx * ddx + ddy * ddy);
 }
 
+function getEffectiveNodeState(nodeId) {
+    let isFixedX = false, isFixedY = false;
+    let forceX = 0, forceY = 0;
+
+    for (const rule of edgeRules) {
+        if (rule.node_a_id !== nodeId && rule.node_b_id !== nodeId) continue;
+
+        if (rule.type === "fix") {
+            if (rule.fix_x) isFixedX = true;
+            if (rule.fix_y) isFixedY = true;
+        } else if (rule.type === "force") {
+            forceX += rule.force_x;
+            forceY += rule.force_y;
+        }
+    }
+
+    return { isFixedX, isFixedY, forceX, forceY };
+}
+
+function getEdgeRuleForElementEdge(idA, idB) {
+    const a = Math.min(idA, idB);
+    const b = Math.max(idA, idB);
+    return edgeRules.find(r => r.node_a_id === a && r.node_b_id === b);
+}
+
 function stressColor(value, maxValue) {
     const t = maxValue > 0 ? value / maxValue : 0;
     const r = Math.floor(255 * t);
@@ -217,13 +243,27 @@ function drawEditableMesh() {
         const c = nodes.find(n => n.id === idC);
         if (!a || !b || !c) return;
 
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.lineTo(c.x, c.y);
-        ctx.closePath();
-        ctx.strokeStyle = "black";
-        ctx.stroke();
+        const edges = [[a, b, idA, idB], [b, c, idB, idC], [c, a, idC, idA]];
+
+        for (const [p1, p2, ea, eb] of edges) {
+            const rule = getEdgeRuleForElementEdge(ea, eb);
+
+            let strokeStyle = "black";
+            if (rule) {
+                if (rule.type === "fix" && (rule.fix_x || rule.fix_y)) {
+                    strokeStyle = "green";
+                } else if (rule.type === "force" && (rule.force_x !== 0 || rule.force_y !== 0)) {
+                    strokeStyle = "orange";
+                }
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = strokeStyle === "black" ? 1 : 2.5;
+            ctx.stroke();
+        }
     });
 
     nodes.forEach(node => {
@@ -232,9 +272,13 @@ function drawEditableMesh() {
 
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-        if (node.is_fixed_x || node.is_fixed_y) {
+        const effective = getEffectiveNodeState(node.id);
+        const isFixed = node.is_fixed_x || node.is_fixed_y || effective.isFixedX || effective.isFixedY;
+        const hasForce = node.force_x !== 0 || node.force_y !== 0 || effective.forceX !== 0 || effective.forceY !== 0;
+
+        if (isFixed) {
             ctx.fillStyle = "green";
-        } else if (node.force_x !== 0 || node.force_y !== 0) {
+        } else if (hasForce) {
             ctx.fillStyle = "orange";
         } else {
             ctx.fillStyle = "blue";
@@ -408,10 +452,44 @@ document.getElementById("node-panel-apply").onclick = () => {
     draw();
 };
 
+document.getElementById("clear-mesh-btn").onclick = () => {
+    if (nodes.length === 0 && elements.length === 0) return;
+    const confirmed = confirm("Clear the entire mesh? This cannot be undone.");
+    if (!confirmed) return;
+
+    nodes = [];
+    elements = [];
+    nextNodeId = 0;
+    selectedNodeIds = [];
+    edgeRules = [];
+    lastResult = null;
+    showStress = false;
+    showDeformed = false;
+    editingNode = null;
+    editingEdge = null;
+
+    syncToggleButton("toggle-stress-btn", showStress);
+    syncToggleButton("toggle-deformed-btn", showDeformed);
+    closeAllPanels();
+    draw();
+};
+
 function updateEdgeFieldVisibility() {
     const isFix = document.getElementById("edge-type").value === "fix";
     document.getElementById("edge-fix-fields").style.display = isFix ? "block" : "none";
     document.getElementById("edge-force-fields").style.display = isFix ? "none" : "block";
+}
+
+const refineInput = document.getElementById("refine-input");
+
+function updateRefineWarning() {
+    const value = parseInt(refineInput.value);
+    refineInput.classList.toggle("refine-warning", value > REFINE_WARNING_THRESHOLD);
+}
+
+if (refineInput) {
+    refineInput.addEventListener("input", updateRefineWarning);
+    updateRefineWarning(); // run once on load in case of a pre-filled value
 }
 
 document.getElementById("edge-type").addEventListener("change", updateEdgeFieldVisibility);
@@ -454,6 +532,7 @@ document.getElementById("edge-panel-apply").onclick = () => {
 
     document.getElementById("edge-panel").style.display = "none";
     editingEdge = null;
+    draw();
 };
 
 document.getElementById("calculate-btn").onclick = async () => {

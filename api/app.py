@@ -47,7 +47,7 @@ class CalculateRequest(BaseModel):
     edge_rules: list[EdgeRuleIn] = []
     nodes: list[NodeIn]
     elements: list[ElementIn]
-    refine_times: int = Field(default=1, ge=0, le=5)
+    refine_times: int = Field(default=1, ge=0, le=8)
 
 @app.get("/health")
 def health():

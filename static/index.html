@@ -6,6 +6,11 @@
     body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
     #toolbar { padding: 8px; background: #222; color: white; }
     #toolbar button.active { background: #4a9; }
+    #refine-input.refine-warning {
+      color: red;
+      font-weight: bold;
+      outline: 1px solid red;
+    }
     canvas { background: #fafafa; display: block; flex: 1; }
     .slider-control {
       width: 100%;
@@ -49,11 +54,12 @@
     <button id="mode-node">Place Node</button>
     <button id="mode-triangle">Make Triangle</button>
     <button id="mode-rectangle">Make Rectangle</button>
-    <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="5"></label>
+    <label>Refine: <input id="refine-input" type="number" value="1" min="0" max="8"></label>
     <button id="calculate-btn">Calculate</button>
     <button id="toggle-stress-btn">Toggle Stress</button>
     <button id="toggle-outlines-btn">Toggle Outlines</button>
     <button id="toggle-deformed-btn">Toggle Deformation</button>
+    <button id="clear-mesh-btn">Clear Mesh</button>
   </div>
   <div id="node-panel" style="display:none; position:absolute; background:#333; color:white; padding:10px; border-radius:4px;">
     <strong>Edit Node</strong><br>
