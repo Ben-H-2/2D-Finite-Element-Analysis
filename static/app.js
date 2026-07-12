@@ -309,7 +309,7 @@ function checkStructuralWarnings() {
     return warnings;
 }
 
-function stressColor(value, maxValue, minValue = 0) {
+function stresscolour(value, maxValue, minValue = 0) {
     let t;
     if (stressScaleMode === "log") {
         const safeMin = minValue > 0 ? minValue : (maxValue > 0 ? maxValue * 1e-6 : 1e-6);
@@ -360,7 +360,7 @@ function updateStressLegend(maxStress, minStress) {
     for (let px = 0; px < width; px++) {
         const frac = px / (width - 1);
         const value = valueAtFraction(frac, maxStress, minStress);
-        barCtx.fillStyle = stressColor(value, maxStress, minStress);
+        barCtx.fillStyle = stressColour(value, maxStress, minStress);
         barCtx.fillRect(px, 0, 1, height);
     }
 
@@ -420,7 +420,7 @@ function drawResultMesh() {
         ctx.lineTo(posC.x, posC.y);
         ctx.closePath();
 
-        ctx.fillStyle = stressColor(vonMises[i], maxStress, minStress);
+        ctx.fillStyle = stressColour(vonMises[i], maxStress, minStress);
     ctx.fill();
 
     ctx.lineJoin = "round";
