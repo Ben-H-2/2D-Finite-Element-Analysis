@@ -11,6 +11,7 @@ const dontShowAgainCheckbox = document.getElementById("warning-dont-show-again")
 const PERSIST_DONT_SHOW_AGAIN = false;
 const MIN_SOLVE_SAMPLES = 4;
 const LEGEND_TICK_COUNT = 6;
+const SHOW_HOVER_TOOLTIP = true;
 
 let nodes = []; 
 let elements = []; 
@@ -82,6 +83,8 @@ function resizeCanvas() {
 
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
+
+window.addEventListener("beforeunload", saveMeshSnapshot);
 
 window.addEventListener("load", () => {
     const snapshot = loadMeshSnapshot();
@@ -187,6 +190,123 @@ function getEdgeRuleForElementEdge(idA, idB) {
     const a = Math.min(idA, idB);
     const b = Math.max(idA, idB);
     return edgeRules.find(r => r.node_a_id === a && r.node_b_id === b);
+}
+
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+    const d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
+    const d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
+    const d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+
+    const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+    return !(hasNeg && hasPos);
+}
+
+function findResultElementAt(x, y) {
+    if (!lastResult) return null;
+    const nodeById = new Map(lastResult.nodes.map(n => [n.id, n]));
+
+    for (let i = 0; i < lastResult.elements.length; i++) {
+        const [idA, idB, idC] = lastResult.elements[i].node_ids;
+        const a = nodeById.get(idA), b = nodeById.get(idB), c = nodeById.get(idC);
+        if (!a || !b || !c) continue;
+
+        // account for deformed view, same as drawResultMesh
+        const pa = showDeformed
+            ? {x: a.posx + lastResult.displacements[idA*2]*deformationScale, y: a.posy + lastResult.displacements[idA*2+1]*deformationScale}
+            : {x: a.posx, y: a.posy};
+        const pb = showDeformed
+            ? {x: b.posx + lastResult.displacements[idB*2]*deformationScale, y: b.posy + lastResult.displacements[idB*2+1]*deformationScale}
+            : {x: b.posx, y: b.posy};
+        const pc = showDeformed
+            ? {x: c.posx + lastResult.displacements[idC*2]*deformationScale, y: c.posy + lastResult.displacements[idC*2+1]*deformationScale}
+            : {x: c.posx, y: c.posy};
+
+        if (pointInTriangle(x, y, pa.x, pa.y, pb.x, pb.y, pc.x, pc.y)) {
+            return { index: i, stress: lastResult.von_mises[i] };
+        }
+    }
+    return null;
+}
+
+function findArticulationNodes() {
+    const adjacency = new Map();
+    const addEdge = (a, b) => {
+        if (!adjacency.has(a)) adjacency.set(a, new Set());
+        if (!adjacency.has(b)) adjacency.set(b, new Set());
+        adjacency.get(a).add(b);
+        adjacency.get(b).add(a);
+    };
+
+    elements.forEach(el => {
+        const [a, b, c] = el.node_ids;
+        addEdge(a, b);
+        addEdge(b, c);
+        addEdge(c, a);
+    });
+
+    const visited = new Set();
+    const disc = new Map();
+    const low = new Map();
+    const articulation = new Set();
+    let timer = 0;
+
+    function dfs(u, parent) {
+        visited.add(u);
+        disc.set(u, timer);
+        low.set(u, timer);
+        timer++;
+        let children = 0;
+
+        for (const v of adjacency.get(u) || []) {
+            if (v === parent) continue;
+            if (visited.has(v)) {
+                low.set(u, Math.min(low.get(u), disc.get(v)));
+            } else {
+                children++;
+                dfs(v, u);
+                low.set(u, Math.min(low.get(u), low.get(v)));
+                if (parent !== null && low.get(v) >= disc.get(u)) {
+                    articulation.add(u);
+                }
+            }
+        }
+        if (parent === null && children > 1) {
+            articulation.add(u);
+        }
+    }
+
+    for (const nodeId of adjacency.keys()) {
+        if (!visited.has(nodeId)) {
+            dfs(nodeId, null);
+        }
+    }
+
+    return articulation;
+}
+
+function checkStructuralWarnings() {
+    const warnings = [];
+
+    const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
+    const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
+
+    const hasAnyFix = usedNodes.some(n => {
+        const effective = getEffectiveNodeState(n.id);
+        return n.is_fixed_x || n.is_fixed_y || effective.isFixedX || effective.isFixedY;
+    });
+
+    if (!hasAnyFix) {
+        warnings.push("No nodes are fixed. The structure has nothing holding it in place and may translate or rotate freely instead of producing meaningful stress results.");
+    }
+
+    const articulationNodes = findArticulationNodes();
+    if (articulationNodes.size > 0) {
+        warnings.push(`${articulationNodes.size} node(s) connect otherwise separate parts of the mesh through a single point. These act like hinges and may let the structure rotate or fly apart unrealistically unless properly constrained.`);
+    }
+
+    return warnings;
 }
 
 function stressColor(value, maxValue, minValue = 0) {
@@ -334,6 +454,14 @@ function drawEditableMesh() {
         const c = nodes.find(n => n.id === idC);
         if (!a || !b || !c) return;
 
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(0,0,0,0.06)";
+        ctx.fill();
+
         const edges = [[a, b, idA, idB], [b, c, idB, idC], [c, a, idC, idA]];
 
         for (const [p1, p2, ea, eb] of edges) {
@@ -387,8 +515,7 @@ function drawEditableMesh() {
 }
 
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); 
-
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (showStress && lastResult) {
         drawResultMesh(); 
     } else {
@@ -396,6 +523,50 @@ function draw() {
         drawEditableMesh(); 
     }
 }
+
+canvas.addEventListener("mousemove", (e) => {
+    const x = e.offsetX / scale, y = e.offsetY / scale;
+    const coordBox = document.getElementById("mouse-coords");
+    if (coordBox) {
+        coordBox.textContent = `X: ${x.toFixed(1)}, Y: ${(LOGICAL_HEIGHT-y).toFixed(1)}`;
+    }
+
+    const tooltip = document.getElementById("stress-tooltip");
+    if (!tooltip) return;
+
+    if (SHOW_HOVER_TOOLTIP && showStress && lastResult) {
+        const hit = findResultElementAt(x, y);
+        if (hit) {
+            tooltip.textContent = `Stress: ${formatStressValue(hit.stress)} Pa`;
+            tooltip.style.left = (e.clientX + 14) + "px";
+            tooltip.style.top = (e.clientY + 14) + "px";
+            tooltip.style.display = "block";
+            return;
+        }
+    }
+    tooltip.style.display = "none";
+});
+
+document.getElementById("add-node-btn").onclick = () => {
+    const xInput = document.getElementById("add-node-x");
+    const yInput = document.getElementById("add-node-y");
+    const x = parseFloat(xInput.value);
+    const y = LOGICAL_HEIGHT - parseFloat(yInput.value);
+
+    if (isNaN(x) || isNaN(y)) {
+        alert("Enter valid X and Y coordinates.");
+        return;
+    }
+
+    showStress = false;
+    nodes.push({
+        id: nextNodeId++,
+        x: x, y: y,
+        force_x: 0, force_y: 0,
+        is_fixed_x: false, is_fixed_y: false
+    });
+    draw();
+};
 
 canvas.addEventListener("click", (e) => { 
     const x = e.offsetX / scale, y = e.offsetY / scale;
@@ -473,6 +644,8 @@ canvas.addEventListener("contextmenu", (e) => {
         document.getElementById("node-fy").value = -node.force_y;
         document.getElementById("node-fixx").checked = node.is_fixed_x;
         document.getElementById("node-fixy").checked = node.is_fixed_y;
+        document.getElementById("node-panel-coords").textContent =
+            `(${node.x.toFixed(1)}, ${(LOGICAL_HEIGHT-node.y).toFixed(1)})`;
 
         panel.style.left = e.pageX + "px";
         panel.style.top = e.pageY + "px";
@@ -551,6 +724,29 @@ document.getElementById("node-panel-apply").onclick = () => {
     editingNode.is_fixed_y = document.getElementById("node-fixy").checked;
     document.getElementById("node-panel").style.display = "none";
     editingNode = null;
+    draw();
+};
+
+document.getElementById("node-panel-delete").onclick = async () => {
+    if (!editingNode) return;
+
+    if (shouldShowDeleteWarning()) {
+        const confirmed = await showDeleteNodeWarning();
+        if (!confirmed) return;
+    }
+
+    const nodeId = editingNode.id;
+
+    elements = elements.filter(el => !el.node_ids.includes(nodeId));
+    edgeRules = edgeRules.filter(r => r.node_a_id !== nodeId && r.node_b_id !== nodeId);
+    nodes = nodes.filter(n => n.id !== nodeId);
+    selectedNodeIds = selectedNodeIds.filter(id => id !== nodeId);
+
+    document.getElementById("node-panel").style.display = "none";
+    editingNode = null;
+    lastResult = null;
+    showStress = false;
+    syncToggleButton("toggle-stress-btn", showStress);
     draw();
 };
 
@@ -665,12 +861,31 @@ function shouldShowRefineWarning(refineTimes) {
     return getWarningStorage().getItem("suppressRefineWarning") !== "true";
 }
 
+function shouldShowStabilityWarning() {
+    return getWarningStorage().getItem("suppressStabilityWarning") !== "true";
+}
+
+function showStabilityWarning(warnings) {
+    return showConfirmModal(
+        "Possible structural instability",
+        warnings.join("\n\n"),
+        "suppressStabilityWarning"
+    );
+}
+
+function shouldShowDeleteWarning() {
+    return getWarningStorage().getItem("suppressDeleteNodeWarning") !== "true";
+}
+
 function getWarningStorage() {
     return PERSIST_DONT_SHOW_AGAIN ? localStorage : sessionStorage;
 }
 
-function showRefineWarning() {
+function showConfirmModal(title, message, storageKey) {
     return new Promise((resolve) => {
+        document.getElementById("warning-modal-title").textContent = title;
+        document.getElementById("warning-modal-message").textContent = message;
+        dontShowAgainCheckbox.checked = false;
         warningOverlay.style.display = "flex";
 
         const cleanup = () => {
@@ -681,7 +896,7 @@ function showRefineWarning() {
 
         document.getElementById("warning-proceed-btn").onclick = () => {
             if (dontShowAgainCheckbox.checked) {
-                getWarningStorage().setItem("suppressRefineWarning", "true");
+                getWarningStorage().setItem(storageKey, "true");
             }
             cleanup();
             resolve(true);
@@ -692,6 +907,22 @@ function showRefineWarning() {
             resolve(false);
         };
     });
+}
+
+function showRefineWarning() {
+    return showConfirmModal(
+        "High refinement level",
+        "This mesh density has a high chance of freezing the browser or crashing the solver. Do you want to proceed?",
+        "suppressRefineWarning"
+    );
+}
+
+function showDeleteNodeWarning() {
+    return showConfirmModal(
+        "Delete node",
+        "Delete this node? Any triangles using it will also be removed.",
+        "suppressDeleteNodeWarning"
+    );
 }
 
 if (refineInput) {
@@ -749,6 +980,12 @@ document.getElementById("calculate-btn").onclick = async () => {
         syncToggleButton("toggle-stress-btn", showStress);
         draw();
         return;
+    }
+
+    const structuralWarnings = checkStructuralWarnings();
+    if (structuralWarnings.length > 0 && shouldShowStabilityWarning()) {
+        const proceed = await showStabilityWarning(structuralWarnings);
+        if (!proceed) return;
     }
 
     const refineTimes = parseInt(document.getElementById("refine-input").value);
