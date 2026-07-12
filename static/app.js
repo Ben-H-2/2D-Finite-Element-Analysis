@@ -81,6 +81,20 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
+window.addEventListener("load", () => {
+    const snapshot = loadMeshSnapshot();
+    if (snapshot && snapshot.nodes.length > 0 && nodes.length === 0) {
+        const restore = confirm("A mesh from your last session was found (possibly from a crash). Restore it?");
+        if (restore) {
+            nodes = snapshot.nodes;
+            elements = snapshot.elements;
+            edgeRules = snapshot.edgeRules;
+            nextNodeId = snapshot.nextNodeId;
+            draw();
+        }
+    }
+});
+
 function findNodeNear(x, y, radius = NODE_SELECTION_RADIUS) { 
     for (const node of nodes) { 
         const dx = node.x - x;
@@ -488,9 +502,34 @@ function getSolveHistory() {
 
 function recordSolveTime(elementCount, ms) {
     const history = getSolveHistory();
-    history.push({ n: elementCount, t: ms });
-    if (history.length > 30) history.shift();
+    const existing = history.find(h => h.n === elementCount);
+
+    if (existing) {
+        existing.t = Math.max(existing.t, ms); // keep the slowest observed time for this size
+    } else {
+        history.push({ n: elementCount, t: ms });
+        if (history.length > 30) history.shift();
+        localStorage.setItem("solveTimeHistory", JSON.stringify(history));
+        return;
+    }
+
     localStorage.setItem("solveTimeHistory", JSON.stringify(history));
+}
+function saveMeshSnapshot() {
+    try {
+        localStorage.setItem("meshSnapshot", JSON.stringify({ nodes, elements, edgeRules, nextNodeId }));
+    } catch (e) {
+        console.warn("Could not save mesh snapshot:", e);
+    }
+}
+
+function loadMeshSnapshot() {
+    try {
+        const raw = localStorage.getItem("meshSnapshot");
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
 }
 
 function estimateSolveTime(elementCount) {
@@ -621,6 +660,7 @@ document.getElementById("calculate-btn").onclick = async () => {
         const proceed = await showRefineWarning();
         if (!proceed) return;
     }
+    saveMeshSnapshot();
 
     const predictedN = predictedElementCount(refineTimes);
     const estimate = estimateSolveTime(predictedN);
@@ -635,7 +675,6 @@ document.getElementById("calculate-btn").onclick = async () => {
     const startTime = performance.now();
 
     try {
-        // Filter to only send nodes that are used by elements
         const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
         const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
 
