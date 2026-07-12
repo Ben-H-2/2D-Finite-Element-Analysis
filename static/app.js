@@ -5,7 +5,9 @@ const NODE_SELECTION_RADIUS = 16;
 const ELEMENT_SELECTION_RADIUS = 16;
 const LOGICAL_WIDTH = 900;
 const LOGICAL_HEIGHT = 600;
-const REFINE_WARNING_THRESHOLD = 5; 
+const REFINE_WARNING_THRESHOLD = 4; 
+const warningOverlay = document.getElementById("warning-modal-overlay");
+const dontShowAgainCheckbox = document.getElementById("warning-dont-show-again");
 
 let nodes = []; 
 let elements = []; 
@@ -367,7 +369,7 @@ canvas.addEventListener("contextmenu", (e) => {
         document.getElementById("edge-panel").style.display = "none"
         
         document.getElementById("node-fx").value = node.force_x;
-        document.getElementById("node-fy").value = node.force_y;
+        document.getElementById("node-fy").value = -node.force_y;
         document.getElementById("node-fixx").checked = node.is_fixed_x;
         document.getElementById("node-fixy").checked = node.is_fixed_y;
 
@@ -398,7 +400,7 @@ canvas.addEventListener("contextmenu", (e) => {
                 document.getElementById("edge-fixy").checked = existingRule.fix_y;
             } else {
                 document.getElementById("edge-fx").value = existingRule.force_x;
-                document.getElementById("edge-fy").value = existingRule.force_y;
+                document.getElementById("edge-fy").value = -existingRule.force_y;
             }
         } else {
             document.getElementById("edge-type").value = "fix";
@@ -444,7 +446,7 @@ function findOrCreateNode(x, y, tolerance = 0.01) {
 document.getElementById("node-panel-apply").onclick = () => {
     if (!editingNode) return;
     editingNode.force_x = parseFloat(document.getElementById("node-fx").value) || 0;
-    editingNode.force_y = parseFloat(document.getElementById("node-fy").value) || 0;
+    editingNode.force_y = -parseFloat(document.getElementById("node-fy").value) || 0;
     editingNode.is_fixed_x = document.getElementById("node-fixx").checked;
     editingNode.is_fixed_y = document.getElementById("node-fixy").checked;
     document.getElementById("node-panel").style.display = "none";
@@ -484,7 +486,39 @@ const refineInput = document.getElementById("refine-input");
 
 function updateRefineWarning() {
     const value = parseInt(refineInput.value);
-    refineInput.classList.toggle("refine-warning", value > REFINE_WARNING_THRESHOLD);
+    const isHigh = value > REFINE_WARNING_THRESHOLD;
+    refineInput.classList.toggle("refine-warning", isHigh);
+    refineInput.title = isHigh ? "High chance of breaking" : "";
+}
+
+function shouldShowRefineWarning(refineTimes) {
+    if (refineTimes <= REFINE_WARNING_THRESHOLD) return false;
+    return localStorage.getItem("suppressRefineWarning") !== "true";
+}
+
+function showRefineWarning() {
+    return new Promise((resolve) => {
+        warningOverlay.style.display = "flex";
+
+        const cleanup = () => {
+            warningOverlay.style.display = "none";
+            document.getElementById("warning-proceed-btn").onclick = null;
+            document.getElementById("warning-cancel-btn").onclick = null;
+        };
+
+        document.getElementById("warning-proceed-btn").onclick = () => {
+            if (dontShowAgainCheckbox.checked) {
+                localStorage.setItem("suppressRefineWarning", "true");
+            }
+            cleanup();
+            resolve(true);
+        };
+
+        document.getElementById("warning-cancel-btn").onclick = () => {
+            cleanup();
+            resolve(false);
+        };
+    });
 }
 
 if (refineInput) {
@@ -521,7 +555,7 @@ document.getElementById("edge-panel-apply").onclick = () => {
             rule.fix_y = document.getElementById("edge-fixy").checked;
         } else {
             rule.force_x = parseFloat(document.getElementById("edge-fx").value) || 0;
-            rule.force_y = parseFloat(document.getElementById("edge-fy").value) || 0;
+            rule.force_y = -parseFloat(document.getElementById("edge-fy").value) || 0;
         }
     }
 
@@ -536,9 +570,13 @@ document.getElementById("edge-panel-apply").onclick = () => {
 };
 
 document.getElementById("calculate-btn").onclick = async () => {
-    const refineTimes = parseInt(document.getElementById("refine-input").value);
+    const refineTimes = parseInt(refineInput.value) || 0;
     
-    // Filter to only send nodes that are used by elements
+    if (shouldShowRefineWarning(refineTimes)) {
+        const proceed = await showRefineWarning();
+        if (!proceed) return;
+    }
+
     const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
     const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
     
