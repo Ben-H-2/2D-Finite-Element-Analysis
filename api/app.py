@@ -62,6 +62,8 @@ def root():
 
 @app.post("/calculate")
 def calculate(req: CalculateRequest):
+    if not req.nodes or not req.elements:
+        return None
     model = AnalysisModel()
     id_to_node = {}
     for n in req.nodes:

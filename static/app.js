@@ -5,11 +5,12 @@ const NODE_SELECTION_RADIUS = 16;
 const ELEMENT_SELECTION_RADIUS = 16;
 const LOGICAL_WIDTH = 900;
 const LOGICAL_HEIGHT = 600;
-const REFINE_WARNING_THRESHOLD = 4; 
+const REFINE_WARNING_THRESHOLD = 5; 
 const warningOverlay = document.getElementById("warning-modal-overlay");
 const dontShowAgainCheckbox = document.getElementById("warning-dont-show-again");
 const PERSIST_DONT_SHOW_AGAIN = false;
 const MIN_SOLVE_SAMPLES = 4;
+const LEGEND_TICK_COUNT = 6;
 
 let nodes = []; 
 let elements = []; 
@@ -25,6 +26,7 @@ let editingEdge = null;
 let edgeRules = [];
 let scale = 1;
 let deformationScale = 50;
+let stressScaleMode = "linear";
 
 function updateModeButtons() {
     const nodeButton = document.getElementById("mode-node");
@@ -187,11 +189,79 @@ function getEdgeRuleForElementEdge(idA, idB) {
     return edgeRules.find(r => r.node_a_id === a && r.node_b_id === b);
 }
 
-function stressColor(value, maxValue) {
-    const t = maxValue > 0 ? value / maxValue : 0;
+function stressColor(value, maxValue, minValue = 0) {
+    let t;
+    if (stressScaleMode === "log") {
+        const safeMin = minValue > 0 ? minValue : (maxValue > 0 ? maxValue * 1e-6 : 1e-6);
+        const safeMax = maxValue > safeMin ? maxValue : safeMin * 10;
+        const safeValue = value > safeMin ? value : safeMin;
+        const logMin = Math.log(safeMin);
+        const logMax = Math.log(safeMax);
+        t = logMax > logMin ? (Math.log(safeValue) - logMin) / (logMax - logMin) : 0;
+    } else {
+        t = maxValue > 0 ? value / maxValue : 0;
+    }
+    t = Math.max(0, Math.min(1, t));
     const r = Math.floor(255 * t);
     const b = Math.floor(255 * (1 - t));
     return `rgb(${r}, 0, ${b})`;
+}
+
+function formatStressValue(v) {
+    if (v === 0) return "0";
+    const abs = Math.abs(v);
+    if (abs >= 100000 || abs < 0.01) return v.toExponential(2);
+    return v.toFixed(2);
+}
+
+function valueAtFraction(frac, maxStress, minStress) {
+    if (stressScaleMode === "log") {
+        const safeMin = minStress > 0 ? minStress : (maxStress > 0 ? maxStress * 1e-6 : 1e-6);
+        const safeMax = maxStress > safeMin ? maxStress : safeMin * 10;
+        const logMin = Math.log(safeMin);
+        const logMax = Math.log(safeMax);
+        return Math.exp(logMin + frac * (logMax - logMin));
+    }
+    return frac * maxStress;
+}
+
+function updateStressLegend(maxStress, minStress) {
+    const legend = document.getElementById("stress-legend");
+    const canvas = document.getElementById("legend-bar-canvas");
+    const ticksContainer = document.getElementById("legend-ticks");
+    if (!legend || !canvas) return;
+
+    legend.style.display = "block";
+
+    const barCtx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+
+    for (let px = 0; px < width; px++) {
+        const frac = px / (width - 1);
+        const value = valueAtFraction(frac, maxStress, minStress);
+        barCtx.fillStyle = stressColor(value, maxStress, minStress);
+        barCtx.fillRect(px, 0, 1, height);
+    }
+
+    ticksContainer.innerHTML = "";
+    for (let i = 0; i < LEGEND_TICK_COUNT; i++) {
+        const frac = i / (LEGEND_TICK_COUNT - 1);
+        const value = valueAtFraction(frac, maxStress, minStress);
+
+        const tick = document.createElement("span");
+        tick.textContent = formatStressValue(value);
+        tick.style.position = "absolute";
+        tick.style.left = `${frac * 100}%`;
+        tick.style.transform = frac === 0 ? "translateX(0%)" : (frac === 1 ? "translateX(-100%)" : "translateX(-50%)");
+        tick.style.whiteSpace = "nowrap";
+        ticksContainer.appendChild(tick);
+    }
+}
+
+function hideStressLegend() {
+    const legend = document.getElementById("stress-legend");
+    if (legend) legend.style.display = "none";
 }
 
 function drawResultMesh() { 
@@ -201,8 +271,11 @@ function drawResultMesh() {
     const displacements = lastResult.displacements; 
 
     const maxStress = Math.max(...vonMises);
+    const positiveStresses = vonMises.filter(v => v > 0);
+    const minStress = positiveStresses.length ? Math.min(...positiveStresses) : 0;
+    updateStressLegend(maxStress, minStress);
 
-    const nodeById = new Map(resultNodes.map(n => [n.id, n])); 
+    const nodeById = new Map(resultNodes.map(n => [n.id, n]));
 
     resultElements.forEach((el, i) => {
         const [idA, idB, idC] = el.node_ids;
@@ -227,7 +300,7 @@ function drawResultMesh() {
         ctx.lineTo(posC.x, posC.y);
         ctx.closePath();
 
-        ctx.fillStyle = stressColor(vonMises[i], maxStress);
+        ctx.fillStyle = stressColor(vonMises[i], maxStress, minStress);
     ctx.fill();
 
     ctx.lineJoin = "round";
@@ -319,6 +392,7 @@ function draw() {
     if (showStress && lastResult) {
         drawResultMesh(); 
     } else {
+        hideStressLegend();
         drawEditableMesh(); 
     }
 }
@@ -335,12 +409,14 @@ canvas.addEventListener("click", (e) => {
             is_fixed_x: false, is_fixed_y: false
         });
         draw();
-    } else if (mode === "triangle") {
+} else if (mode === "triangle") {
         showStress = false; // same as previous
         const node = findNodeNear(x, y);
         if (!node) return;
 
-        if (!selectedNodeIds.includes(node.id)) {
+        if (selectedNodeIds.includes(node.id)) {
+            selectedNodeIds = selectedNodeIds.filter(id => id !== node.id);
+        } else {
             selectedNodeIds.push(node.id);
         }
 
@@ -353,7 +429,9 @@ canvas.addEventListener("click", (e) => {
         const Node = findNodeNear(x, y);
         if (!Node) return;
 
-        if (!selectedNodeIds.includes(Node.id)) {
+        if (selectedNodeIds.includes(Node.id)) {
+            selectedNodeIds = selectedNodeIds.filter(id => id !== Node.id);
+        } else {
             selectedNodeIds.push(Node.id);
         }
 
@@ -379,6 +457,13 @@ canvas.addEventListener("contextmenu", (e) => {
     const node = findNodeNear(x, y);
 
     if (node) {
+        const panel = document.getElementById("node-panel");
+        if (editingNode && editingNode.id === node.id && panel.style.display === "block") {
+            panel.style.display = "none";
+            editingNode = null;
+            return;
+        }
+
         showStress = false;
 
         editingNode = node;
@@ -389,7 +474,6 @@ canvas.addEventListener("contextmenu", (e) => {
         document.getElementById("node-fixx").checked = node.is_fixed_x;
         document.getElementById("node-fixy").checked = node.is_fixed_y;
 
-        const panel = document.getElementById("node-panel");
         panel.style.left = e.pageX + "px";
         panel.style.top = e.pageY + "px";
         panel.style.display = "block";
@@ -489,6 +573,11 @@ document.getElementById("clear-mesh-btn").onclick = () => {
     syncToggleButton("toggle-stress-btn", showStress);
     syncToggleButton("toggle-deformed-btn", showDeformed);
     closeAllPanels();
+    try {
+        localStorage.removeItem("meshSnapshot");
+    } catch (e) {
+        console.warn("Could not clear mesh snapshot:", e);
+    }
     draw();
 };
 
@@ -654,6 +743,14 @@ document.getElementById("edge-panel-apply").onclick = () => {
 };
 
 document.getElementById("calculate-btn").onclick = async () => {
+    if (nodes.length === 0 || elements.length === 0) {
+        lastResult = null;
+        showStress = false;
+        syncToggleButton("toggle-stress-btn", showStress);
+        draw();
+        return;
+    }
+
     const refineTimes = parseInt(document.getElementById("refine-input").value);
 
     if (shouldShowRefineWarning(refineTimes)) {
@@ -701,7 +798,16 @@ document.getElementById("calculate-btn").onclick = async () => {
             return;
         }
 
-        lastResult = await response.json();
+        const result = await response.json();
+        if (!result) {
+            lastResult = null;
+            showStress = false;
+            syncToggleButton("toggle-stress-btn", showStress);
+            draw();
+            return;
+        }
+
+        lastResult = result;
         showStress = true;
         syncToggleButton("toggle-stress-btn", showStress);
         draw();
@@ -716,6 +822,12 @@ document.getElementById("calculate-btn").onclick = async () => {
 document.getElementById("toggle-stress-btn").onclick = () => {
     showStress = !showStress;
     syncToggleButton("toggle-stress-btn", showStress);
+    draw();
+};
+document.getElementById("toggle-scale-btn").onclick = () => {
+    stressScaleMode = stressScaleMode === "linear" ? "log" : "linear";
+    document.getElementById("toggle-scale-btn").textContent =
+        stressScaleMode === "linear" ? "Scale: Linear" : "Scale: Log";
     draw();
 };
 document.getElementById("toggle-deformed-btn").onclick = () => {
