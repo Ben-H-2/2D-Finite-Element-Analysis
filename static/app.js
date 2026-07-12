@@ -8,6 +8,8 @@ const LOGICAL_HEIGHT = 600;
 const REFINE_WARNING_THRESHOLD = 4; 
 const warningOverlay = document.getElementById("warning-modal-overlay");
 const dontShowAgainCheckbox = document.getElementById("warning-dont-show-again");
+const PERSIST_DONT_SHOW_AGAIN = false;
+const MIN_SOLVE_SAMPLES = 4;
 
 let nodes = []; 
 let elements = []; 
@@ -476,6 +478,45 @@ document.getElementById("clear-mesh-btn").onclick = () => {
     draw();
 };
 
+function getSolveHistory() {
+    try {
+        return JSON.parse(localStorage.getItem("solveTimeHistory") || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function recordSolveTime(elementCount, ms) {
+    const history = getSolveHistory();
+    history.push({ n: elementCount, t: ms });
+    if (history.length > 30) history.shift();
+    localStorage.setItem("solveTimeHistory", JSON.stringify(history));
+}
+
+function estimateSolveTime(elementCount) {
+    const history = getSolveHistory().filter(h => h.n > 0 && h.t > 0);
+    if (history.length < MIN_SOLVE_SAMPLES) return null; 
+
+    const xs = history.map(h => Math.log(h.n));
+    const ys = history.map(h => Math.log(h.t));
+    const meanX = xs.reduce((s, v) => s + v, 0) / xs.length;
+    const meanY = ys.reduce((s, v) => s + v, 0) / ys.length;
+    let num = 0, den = 0;
+    for (let i = 0; i < xs.length; i++) {
+        num += (xs[i] - meanX) * (ys[i] - meanY);
+        den += (xs[i] - meanX) ** 2;
+    }
+    if (den === 0) return history[history.length - 1].t;
+
+    const b = num / den;
+    const a = Math.exp(meanY - b * meanX);
+    return a * Math.pow(elementCount, b);
+}
+
+function predictedElementCount(refineTimes) {
+    return elements.length * Math.pow(4, refineTimes);
+}
+
 function updateEdgeFieldVisibility() {
     const isFix = document.getElementById("edge-type").value === "fix";
     document.getElementById("edge-fix-fields").style.display = isFix ? "block" : "none";
@@ -493,7 +534,11 @@ function updateRefineWarning() {
 
 function shouldShowRefineWarning(refineTimes) {
     if (refineTimes <= REFINE_WARNING_THRESHOLD) return false;
-    return localStorage.getItem("suppressRefineWarning") !== "true";
+    return getWarningStorage().getItem("suppressRefineWarning") !== "true";
+}
+
+function getWarningStorage() {
+    return PERSIST_DONT_SHOW_AGAIN ? localStorage : sessionStorage;
 }
 
 function showRefineWarning() {
@@ -508,7 +553,7 @@ function showRefineWarning() {
 
         document.getElementById("warning-proceed-btn").onclick = () => {
             if (dontShowAgainCheckbox.checked) {
-                localStorage.setItem("suppressRefineWarning", "true");
+                getWarningStorage().setItem("suppressRefineWarning", "true");
             }
             cleanup();
             resolve(true);
@@ -570,43 +615,63 @@ document.getElementById("edge-panel-apply").onclick = () => {
 };
 
 document.getElementById("calculate-btn").onclick = async () => {
-    const refineTimes = parseInt(refineInput.value) || 0;
-    
+    const refineTimes = parseInt(document.getElementById("refine-input").value);
+
     if (shouldShowRefineWarning(refineTimes)) {
         const proceed = await showRefineWarning();
         if (!proceed) return;
     }
 
-    const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
-    const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
-    
-    const payload = {
-        nodes: usedNodes.map(n => ({
-            id: n.id, posx: n.x, posy: n.y,
-            force_x: n.force_x, force_y: n.force_y,
-            is_fixed_x: n.is_fixed_x, is_fixed_y: n.is_fixed_y
-        })),
-        elements: elements.map(el => ({
-            type: el.type, node_ids: el.node_ids
-        })),
-        refine_times: refineTimes,
-        edge_rules: edgeRules
-    };
+    const predictedN = predictedElementCount(refineTimes);
+    const estimate = estimateSolveTime(predictedN);
 
-    const response = await fetch("/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-        alert("Calculation failed: " + (await response.text()));
-        return;
+    const statusEl = document.getElementById("solve-status");
+    const statusText = document.getElementById("solve-status-text");
+    statusText.textContent = estimate
+        ? (estimate < 100 ? "Solving..." : `Solving... ~${(estimate / 1000).toFixed(1)}s`)
+        : "Solving...";
+    statusEl.style.display = "flex";
+
+    const startTime = performance.now();
+
+    try {
+        // Filter to only send nodes that are used by elements
+        const usedNodeIds = new Set(elements.flatMap(el => el.node_ids));
+        const usedNodes = nodes.filter(n => usedNodeIds.has(n.id));
+
+        const payload = {
+            nodes: usedNodes.map(n => ({
+                id: n.id, posx: n.x, posy: n.y,
+                force_x: n.force_x, force_y: n.force_y,
+                is_fixed_x: n.is_fixed_x, is_fixed_y: n.is_fixed_y
+            })),
+            elements: elements.map(el => ({
+                type: el.type, node_ids: el.node_ids
+            })),
+            refine_times: refineTimes,
+            edge_rules: edgeRules
+        };
+
+        const response = await fetch("/calculate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            alert("Calculation failed: " + (await response.text()));
+            return;
+        }
+
+        lastResult = await response.json();
+        showStress = true;
+        syncToggleButton("toggle-stress-btn", showStress);
+        draw();
+
+        const elapsed = performance.now() - startTime;
+        recordSolveTime(predictedN, elapsed);
+    } finally {
+        statusEl.style.display = "none";
     }
-    
-    lastResult = await response.json();
-    showStress = true; 
-    syncToggleButton("toggle-stress-btn", showStress);
-    draw();
 };
 
 document.getElementById("toggle-stress-btn").onclick = () => {
