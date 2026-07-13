@@ -360,7 +360,7 @@ function updateStressLegend(maxStress, minStress) {
     for (let px = 0; px < width; px++) {
         const frac = px / (width - 1);
         const value = valueAtFraction(frac, maxStress, minStress);
-        barCtx.fillStyle = stressColour(value, maxStress, minStress);
+        barCtx.fillStyle = stresscolour(value, maxStress, minStress);
         barCtx.fillRect(px, 0, 1, height);
     }
 
@@ -420,7 +420,7 @@ function drawResultMesh() {
         ctx.lineTo(posC.x, posC.y);
         ctx.closePath();
 
-        ctx.fillStyle = stressColour(vonMises[i], maxStress, minStress);
+        ctx.fillStyle = stresscolour(vonMises[i], maxStress, minStress);
     ctx.fill();
 
     ctx.lineJoin = "round";
