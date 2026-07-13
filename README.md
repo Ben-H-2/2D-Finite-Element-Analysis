@@ -53,7 +53,17 @@ Upon solving, reloading or exiting the page the current mesh is snapshotted to l
 </details>
 
 
-## Screenshots / Demo
+## Screenshots
+### Outlines toggled on:
+![](Example_Photos/v1.4_lines.png)
+### Editor Mode
+![](Example_Photos/v1.4_editor.png)
+### Log Colouring Mode
+![](Example_Photos/v1.4_log.png)
+### Linear Colouring Mode
+![](Example_Photos/v1.4.png)
+### Example warning
+![](Example_Photos/Instability_warning.png)
 
 ## Getting Started
 ### Prerequisites
@@ -149,6 +159,7 @@ This will print out the current status of the http://localhost:8000 in the termi
 - [ ] Material properties
 - [ ] Save/load mesh to file
 - [ ] Pyvista implementation
+- [ ] Curved lines support
 
 ## Project Structure
 ### File Layout
