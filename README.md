@@ -73,7 +73,7 @@ pip
 ```
 ### Installation
 ```
-git clone (https://github.com/Ben-H-2/2D-FEA-Sandbox).git
+git clone https://github.com/Ben-H-2/FEA-Sandbox.git
 cd 2D-FEA-Sandbox
 pip install -r requirements.txt
 ```
