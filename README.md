@@ -1,5 +1,5 @@
 # FEA Sandbox - Interactive Finite Element Analysis Tool
-**A browser-based tool for building 2D triangular meshes and applying loads and constraints, all in real time with stress colouring, deformation and structural warning feedback. No external software required, running locally or in Github codespaces.**
+**A browser-based tool for building 2D meshes and applying loads and constraints, all in real time with stress colouring, deformation and structural warning feedback. No external software required, running locally or in Github codespaces.**
 
 ## Features
 <details>
