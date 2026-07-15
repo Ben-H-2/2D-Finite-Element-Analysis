@@ -6,48 +6,63 @@
 
 <summary> Mesh Editing </summary>
 
+<br>
 Left click in "Add node" mode to freely place nodes or manually enter coordinates. Group nodes into triangular elements directly or create rectangular shapes through 2 triangles by selecting corner nodes.
 
 </details>
 <details>
 
 <summary>Boundary Conditions & Loads</summary>
+
+<br>
 Right click a node or element edge to either fix it in the X/Y direction, apply a point force, or evenly distribute force along an edge. Edited nodes and elements are colour coded by property (green = fixed, orange = force).
 
 </details>
 <details>
 
 <summary>Mesh Refinement</summary>
+
+<br>
 Subdivide the mesh before solving with a configurable level of refinement up to 4^8 triangles per element. Warning messages are shown above a certain threshold as refinement grows element count exponentially so can lead to long processing time.
 
 </details>
 <details>
 
 <summary>Solving</summary>
+
+<br>
 When "calculate" is pressed, the mesh is sent to a Python backend, which assembles a global stiffness matrix as a sparse COO matrix, converts it to CSR for boundary condition reduction and solves it with SciPy's sparse solver (spsolve).
 
 </details>
 <details>
 
 <summary>Stress Visualization</summary>
+
+<br>
 Stress is conveyed through a colour-mapped overlay with a live legend, with a toggle for linear as well as logarithmic scaling so stress distribution is visible even when outliers may wash out colour discepancies in linear mode.
 
 </details>
 <details>
 
 <summary>Deformed Shape Preview</summary>
+
+<br>
 Toggle between the orginal and deformed mesh, with a configurable slider to exaggerate the deformation where it may not be visible for smaller forces.
 
 </details>
 <details>
 
 <summary>Structural warnings</summary>
+
+<br>
 Before solving a check is run for unconstrained structures or connections around single nodes (articulation points) in order to prevent unintended results (these warnings are permanently dismissable).
 
 </details>
 <details>
 
 <summary>Crash Recovery / Session Persistence</summary>
+
+<br>
 Upon solving, reloading or exiting the page the current mesh is snapshotted to local storage, so a reload or crash prompts a message to recover the mesh as a precaution.
 
 </details>
@@ -107,7 +122,7 @@ This will print out the current status of the http://localhost:8000 in the termi
 <details>
 
 <summary><strong>Mesh Data Model (Nodes, Elements, Edge Rules)</strong></summary>
-- <em>Each node holds an individual position, fixed_x/y, force_x/y and an ID</em>
+<br>- <em>Each node holds an individual position, fixed_x/y, force_x/y and an ID</em>
 <br>- <em>Elements reference 3 node IDs as the mesh is entirely comprised of triangles</em>
 <br>- <em>Edge rules apply fixed_x/y attributes along all nodes on an edge (including corner nodes) as well as distibuting force evenly </em>
 
@@ -115,7 +130,7 @@ This will print out the current status of the http://localhost:8000 in the termi
 <details>
 
 <summary><strong>Refinement Algorithm</strong></summary>
-- <em>Each refinement pass subdivides each triangle element into 4 new triangles</em>
+<br>- <em>Each refinement pass subdivides each triangle element into 4 new triangles</em>
 <br> - <em>Therefore triangle/element count grows at a rate of n * 4^refine_times where n is intital element count</em>
 <br> - <em>This explains why refinement above 5 is flagged by red colouring and refinement above 5 for meshes with multiple elements is inadvisable</em>
 
@@ -123,14 +138,14 @@ This will print out the current status of the http://localhost:8000 in the termi
 <details>
 
 <summary><strong>Structural Warnings</strong></summary>
-- <em>Unconstrained Element Check - If there are no fixed nodes or elements deformation would result in the whole mesh moving (effectively dissapearing)</em>
+<br> - <em>Unconstrained Element Check - If there are no fixed nodes or elements deformation would result in the whole mesh moving (effectively dissapearing)</em>
 <br> - <em>Articulation Point Detection - If a single node connects 2 otheriwse disconnected regions it can result in innacurate deformation results so this is flagged</em>
 
 </details>
 <details>
 
 <summary><strong>Solve Request / Response Format</strong></summary>
-- <em>The frontend sends mesh nodes, elements, edge_rules, and refine_times to <code>/calculate</code></em>
+<br>- <em>The frontend sends mesh nodes, elements, edge_rules, and refine_times to <code>/calculate</code></em>
 <br>- <em>The backend builds an AnalysisModel from the nodes/elements, then applies mesh refinement and edge rules</em>
 <br>- <em>model.solve() assembles the global stiffness matrix as a sparse COO matrix, reduces it for boundary conditions, and solves it with SciPy's sparse.linalg.spsolve</em>
 <br>- <em>The backend returns solved node positions, displacements, and per-element von Mises stress as JSON, which the frontend uses to render the stress view</em>
@@ -139,14 +154,14 @@ This will print out the current status of the http://localhost:8000 in the termi
 <details>
 
 <summary><strong>Stress Color Mapping (Linear vs Logarithmic)</strong></summary>
-- <em>Linear node maps colour directly to stress as a fraction of the maximum</em>
+<br>- <em>Linear node maps colour directly to stress as a fraction of the maximum</em>
 <br> - <em>Logarithmic mode maps the log of the value instead spreading out the colouring and distinguishing stress in low stress regions</em>
 
 </details>
 <details>
 
 <summary><strong>Solve Time Estimation</strong></summary>
-<em> Solve durations are recorded per post-refinement element count in local storage, and a log-log regression over past solves displays the expected solve time when each solve begins. </em>
+<br><em> Solve durations are recorded per post-refinement element count in local storage, and a log-log regression over past solves displays the expected solve time when each solve begins. </em>
 
 </details>
 
