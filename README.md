@@ -12,7 +12,7 @@ Left click in "Add node" mode to freely place nodes or manually enter coordinate
 </details>
 <details>
 
-<summary>Boundary Conditions & Loads</summary>
+<summary><strong>Boundary Conditions & Loads</strong></summary>
 
 <br>
 Right click a node or element edge to either fix it in the X/Y direction, apply a point force, or evenly distribute force along an edge. Edited nodes and elements are colour coded by property (green = fixed, orange = force).
@@ -20,7 +20,7 @@ Right click a node or element edge to either fix it in the X/Y direction, apply 
 </details>
 <details>
 
-<summary>Mesh Refinement</summary>
+<summary><strong>Mesh Refinement</strong></summary>
 
 <br>
 Subdivide the mesh before solving with a configurable level of refinement up to 4^8 triangles per element. Warning messages are shown above a certain threshold as refinement grows element count exponentially so can lead to long processing time.
@@ -28,7 +28,7 @@ Subdivide the mesh before solving with a configurable level of refinement up to 
 </details>
 <details>
 
-<summary>Solving</summary>
+<summary><strong>Solving</strong></summary>
 
 <br>
 When "calculate" is pressed, the mesh is sent to a Python backend, which assembles a global stiffness matrix as a sparse COO matrix, converts it to CSR for boundary condition reduction and solves it with SciPy's sparse solver (spsolve).
@@ -36,7 +36,7 @@ When "calculate" is pressed, the mesh is sent to a Python backend, which assembl
 </details>
 <details>
 
-<summary>Stress Visualization</summary>
+<summary><strong>Stress Visualization</strong></summary>
 
 <br>
 Stress is conveyed through a colour-mapped overlay with a live legend, with a toggle for linear as well as logarithmic scaling so stress distribution is visible even when outliers may wash out colour discepancies in linear mode.
@@ -44,7 +44,7 @@ Stress is conveyed through a colour-mapped overlay with a live legend, with a to
 </details>
 <details>
 
-<summary>Deformed Shape Preview</summary>
+<summary><strong>Deformed Shape Preview</strong></summary>
 
 <br>
 Toggle between the orginal and deformed mesh, with a configurable slider to exaggerate the deformation where it may not be visible for smaller forces.
@@ -52,7 +52,7 @@ Toggle between the orginal and deformed mesh, with a configurable slider to exag
 </details>
 <details>
 
-<summary>Structural warnings</summary>
+<summary><strong>Structural warnings</strong></summary>
 
 <br>
 Before solving a check is run for unconstrained structures or connections around single nodes (articulation points) in order to prevent unintended results (these warnings are permanently dismissable).
@@ -60,7 +60,7 @@ Before solving a check is run for unconstrained structures or connections around
 </details>
 <details>
 
-<summary>Crash Recovery / Session Persistence</summary>
+<summary><strong>Crash Recovery / Session Persistence</strong></summary>
 
 <br>
 Upon solving, reloading or exiting the page the current mesh is snapshotted to local storage, so a reload or crash prompts a message to recover the mesh as a precaution.
