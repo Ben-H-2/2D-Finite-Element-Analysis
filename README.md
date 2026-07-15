@@ -4,7 +4,7 @@
 ## Features
 <details>
 
-<summary> Mesh Editing </summary>
+<summary><strong>Mesh Editing</strong></summary>
 
 <br>
 Left click in "Add node" mode to freely place nodes or manually enter coordinates. Group nodes into triangular elements directly or create rectangular shapes through 2 triangles by selecting corner nodes.
